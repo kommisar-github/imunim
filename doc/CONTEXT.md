@@ -1,4 +1,4 @@
-# CONTEXT.md — Shooting Training Attendance System (v4.2.9)
+# CONTEXT.md — Shooting Training Attendance System (v5.2.0)
 
 ## 1. Project Overview
 
@@ -6,9 +6,9 @@
 
 - **Purpose**: Track trainee attendance, weapons/tools, and session management
 - **Architecture**: Google Apps Script web app deployed as public URL with Hebrew RTL interface
-- **Version**: 4.2.9 (multi-instructor + deputy instructors + hybrid OTP auth + automated backups + admin close + auto-close + session event emails + instructor attendance override, v4.2.x)
+- **Version**: 5.2.0 (4-tier role system: owner/admin/instructor/trainee, suspension management, simplified auth, unified CSS, GAS iframe mobile zoom fix)
 - **Interface**: Dark theme, responsive design, Hebrew right-to-left layout
-- **Target Users**: Instructors (session management), trainees (registration & attendance poll), admins (overview & reporting)
+- **Target Users**: Owners (system config), admins (overview & management), instructors (session management), trainees (registration & attendance poll)
 
 ## 2. Rules (CRITICAL)
 
@@ -22,10 +22,10 @@ The UI design, color scheme, spacing, and card layouts are finalized. Any modifi
 - This preserves version control and prevents conflicts
 
 ### Rule 3: Increment Patch Version on Every Edit
-- **CRITICAL**: Every .gs file contains a version comment header at the top: `// v4.1.0`
+- **CRITICAL**: Every .gs file contains a version comment header at the top: `// v5.2.0`
 - All .gs files share the SAME version number
-- The config.gs file contains `var SCRIPT_VERSION = '4.1.0';`
-- On every code modification, increment the patch version (4.1.0 → 4.1.1) in:
+- The config.gs file contains `var SCRIPT_VERSION = '5.2.0';`
+- On every code modification, increment the patch version (5.2.0 → 5.2.1) in:
   1. Comment headers in ALL .gs files (config.gs, routing.gs, data.gs, pages.gs, setup.gs, logo.gs, backup.gs)
   2. The `SCRIPT_VERSION` constant in config.gs
 - This ensures version consistency and tracks deployment history
@@ -34,13 +34,13 @@ The UI design, color scheme, spacing, and card layouts are finalized. Any modifi
 
 ```
 Imun/Multi/
-├── config.gs           — Constants, sheet IDs, URLs, OTP settings (30 lines)
-├── routing.gs          — doGet(e) router with OTP gate flows (~120 lines)
-├── data.gs             — All data functions: sessions, trainees, instructors, poll, OTP auth, auto-close (~830 lines)
-├── pages.gs            — All HTML page generators incl. instructor OTP UI, admin close (~920 lines)
-├── setup.gs            — Sheet setup/initialization + trigger management (165 lines)
+├── config.gs           — Constants, sheet IDs, URLs, OTP settings (~34 lines)
+├── routing.gs          — doGet(e) router with OTP gate flows (~121 lines)
+├── data.gs             — All data functions: sessions, trainees, instructors, poll, OTP auth, admin, suspensions, owner (~1665 lines)
+├── pages.gs            — All HTML page generators: shared CSS (getBaseCSS), zoom (getZoomScript), 7 page generators (~1300 lines)
+├── setup.gs            — Sheet setup/initialization + trigger management (~305 lines)
 ├── logo.gs             — LOGO_BASE64 constant (~110KB)
-├── backup.gs           — Scheduled daily backup to Google Drive (~120 lines)
+├── backup.gs           — Scheduled daily backup to Google Drive (~144 lines)
 ├── doc/                — Project documentation
 │   ├── CONTEXT.md          — This file
 │   ├── MULTI_DESIGN.md     — Design document
@@ -48,7 +48,8 @@ Imun/Multi/
 │   ├── PLAN_v5.md          — v5.0 implementation plan
 │   ├── ROADMAP_v5.md       — Roadmap and status
 │   ├── DOC_GUIDELINES.md   — Manual formatting specs
-│   └── AUDIT_v5011.md      — v5.0.11 audit report
+│   ├── AUDIT_v5011.md      — v5.0.11 audit report
+│   └── GUI_GUIDELINES.md   — GAS iframe rendering, mobile detection, CSS zoom, shared CSS architecture
 ├── manuals/            — User-facing manuals (.docx)
 │   ├── מדריך_למדריך_v5012.docx      — Instructor manual (Hebrew)
 │   ├── Instructor_Manual_v5012.docx  — Instructor manual (English)
@@ -86,6 +87,10 @@ All 4 supporting spreadsheets with complete schema:
   10-13. **Tool Group 2**: מס׳ רישיון, בתוקף עד, סוג כלי, מספר כלי, קוטר
   14-17. **Tool Group 3**: מס׳ רישיון, בתוקף עד, סוג כלי, מספר כלי, קוטר
   18-21. **Tool Group 4**: מס׳ רישיון, בתוקף עד, סוג כלי, מספר כלי, קוטר
+  22. **סטטוס** (Status — Column V): פעיל/מושעה/לא פעיל. Data validation dropdown.
+  23. **סיבת השעיה** (Suspension Reason — Column W): Free text, populated when suspended
+  24. **תאריך השעיה** (Suspension Date — Column X): Date when suspended
+  25. **דא** (Simplified Auth — Column Y): `כן` = bypass OTP for non-Gmail trainees. No dropdown — owner sets manually. Hidden feature.
 
 ### 5.2 Response Sheet (תשובות סקר) — Poll Responses
 - **Sheet ID**: `1wl4lUd3_XKLGDY58jilUae43xIH8BJtnGOgNmuF-SAQ`
@@ -109,6 +114,7 @@ All 4 supporting spreadsheets with complete schema:
   3. מ"מ (Deputy/Alternate — Yes/No)
   4. טלפון (Phone)
   5. אימייל (Email)
+  6. **אדמין** (Admin — Column F): `כן` = instructor has admin access. Data validation dropdown.
 
 ### 5.4 Sessions Sheet (לוח אימונים) — Session Log
 - **Sheet ID**: `1hrsIxwkckoc_Od4gSinM07XiRVhiSo9pYW2--bbBumI`
@@ -125,6 +131,14 @@ All 4 supporting spreadsheets with complete schema:
   8. **מ"מ 1 ת.ז.** (Deputy 1 ID — optional)
   9. **מ"מ 2 ת.ז.** (Deputy 2 ID — optional)
 
+### 5.5 Suspension Reasons Sheet (סיבות השעיה) — v5.0.5
+- **Sheet ID**: `1E3htH5udGPwgnqvOC6cJbtEjG0cva1EdDG_v1SByENQ`
+- **Tab Name**: `סיבות השעיה`
+- **URL**: `https://docs.google.com/spreadsheets/d/1E3htH5udGPwgnqvOC6cJbtEjG0cva1EdDG_v1SByENQ/edit`
+- **Columns**:
+  1. סיבה (Reason text)
+  2. פעיל (Active — כן/לא)
+
 ## 6. Routes (doGet Router)
 
 All navigation controlled by `routing.gs` `doGet(e)` function:
@@ -135,11 +149,11 @@ All navigation controlled by `routing.gs` `doGet(e)` function:
 | ?action=register | `getLookupHtml(prefillTz)` | Public | Trainee registration/update form with ת.ז. lookup |
 | ?action=poll | `getPollHtml(sessionId)` | Public | Session picker + attendance form with tool selector |
 | ?action=instructor | `getInstructorDashboardHtml()` | Client-side OTP/Google | Instructor dashboard (auth handled by OTP flow) |
-| ?action=admin | `getAdminDashboardHtml()` | `isAdminEmail` | Admin dashboard |
+| ?action=admin | `getAdminDashboardHtml()` | Client-side TZ + OTP/Google | Admin dashboard (4-tier: admin sees management, owner sees DB links) |
 | ?action=print&session=ID | `getPrintHtml(sessionId)` or `getPrintOtpGateHtml(sessionId)` | Google session or OTP gate | Print attendance page |
 | ?action=printVerified&session=ID&token=T | `getPrintHtml(sessionId)` | One-time token (60s) | Print page after OTP verification |
 | ?action=status&session=ID | `doGetStatus(sessionId)` | Called from authenticated dashboard | Status JSON: `{success, total, attending}` |
-| ?action=debug | Debug info page | Public | Diagnostic: shows email, auth status, config |
+| ?action=debug | Debug info page | Owner email (v5.0.12) | Diagnostic: shows email, auth status, config. Gated behind `OWNER_EMAILS` check |
 
 ## 7. Function Inventory
 
@@ -151,15 +165,17 @@ Complete list of every function organized by file:
 ### routing.gs
 - **`doGet(e)`** — Main router dispatcher. Parses `e.parameter.action` and `e.parameter.session`/`e.parameter.tz`, dispatches to appropriate page handler.
 
-### data.gs (~800 lines)
+### data.gs (~1665 lines)
 
 #### Authentication & Security
-- **`isAdminEmail(email)`** — Returns true if email matches any entry in ADMIN_EMAILS array.
-- **`isAuthorizedEmail(email)`** — Returns true if email matches any ADMIN_EMAILS entry or any instructor's email in instructor sheet.
+- **`isAdminByTz(tz)`** — NEW (v5.0.0). Checks instructor sheet column F (אדמין) for `כן`. Returns true if instructor has admin access.
+- **`isOwnerByTz(tz)`** — NEW (v5.0.9). Looks up instructor email by TZ, checks against `OWNER_EMAILS` array. Returns true if instructor is system owner.
+- **`isSimplifiedAuth(tz)`** — NEW (v5.1.0). Reads trainee column Y (דא). Returns true if value is `כן` AND trainee email is NOT Gmail. Used to bypass OTP for specific non-Gmail trainees.
+- **`isAuthorizedEmail(email)`** — Returns true if email matches any OWNER_EMAILS entry or any instructor's email in instructor sheet.
 - **`isSessionAuthorized(email, sessionId)`** — (v4.2.0). Returns true if email belongs to the main instructor of the session, either deputy of the session, or admin.
-- **`isSessionAuthorizedByTz(tz, sessionId)`** — NEW (v4.2.3). Like `isSessionAuthorized` but takes ת.ז. instead of email. Checks if tz matches main instructor, deputy1, or deputy2 on the session.
-- **`checkInstructorAuth(tz)`** — NEW (v4.2.3). Checks if instructor can be authenticated via Google session. Returns `{authenticated: true}` if Google email matches, `{authenticated: false, needsOtp: true}` if no Google session, or error message if email mismatch.
-- **`backfillTraineeEmail(traineeName)`** — Updates source sheet email column if empty, using `Session.getActiveUser().getEmail()`. Called during registration and poll submission.
+- **`isSessionAuthorizedByTz(tz, sessionId)`** — (v4.2.3). Like `isSessionAuthorized` but takes ת.ז. instead of email.
+- **`checkInstructorAuth(tz)`** — (v4.2.3). Checks if instructor can be authenticated via Google session. Returns `{authenticated: true}` if Google email matches, `{authenticated: false, needsOtp: true}` if no Google session, or error message if email mismatch.
+- **`backfillTraineeEmail(traineeName)`** — Updates source sheet email column if empty, using `Session.getActiveUser().getEmail()`.
 
 #### Instructor OTP Authentication (v4.2.3)
 - **`requestInstructorOTP(tz)`** — Looks up instructor by ת.ז., sends OTP to their registered email via `MailApp.sendEmail()`. Uses cache keys `otp-inst-{tz}` and `otp-block-inst-{tz}`. Returns `{success, maskedEmail}`.
@@ -198,7 +214,19 @@ Complete list of every function organized by file:
 - **`lookupByTZ(tz)`** — Finds trainee by ת.ז., returns `{found, name, tz, phone, tools}`. Tools is array of 4 objects (license, expiry, type, serial, diameter). **Hybrid auth**: if Google session email present + stored email exists → verify match; if no Google session + stored email → return `{needsOTP:true, maskedEmail}`; if no Google session + no stored email → return `{needsEmail:true, name}`.
 - **`validateTraineeData(data)`** — Validates trainee object fields. Returns error string or null. Checks: name, tz, phone required; phone is 10 digits; tools have license if populated.
 - **`addTraineeData(newData)`** — Appends new trainee row to source sheet. Does NOT check duplicates — caller responsibility. **Silently captures Google session email to אימייל column.**
-- **`updateTraineeData(updatedData)`** — Finds and updates existing trainee row by ת.ז. **Updates Google session email on every edit.**
+- **`updateTraineeData(updatedData)`** — Finds and updates existing trainee row by ת.ז. **Updates Google session email on every edit. Preserves status/suspension columns (V-X) on trainee self-edit (v5.0.12).**
+
+#### Trainee Status & Suspension (v5.0.0+)
+- **`getTraineeStatus(tz)`** — Returns trainee status from column V (פעיל/מושעה/לא פעיל).
+- **`updateTraineeStatus(tz, status, reason, date)`** — Updates trainee status, suspension reason, and date columns (V-X).
+- **`getSuspendedTrainees()`** — Returns list of all trainees with status `מושעה`. Used by admin suspension panel.
+- **`resolveTraineeSuspension(tz)`** — Changes trainee status from `מושעה` back to `פעיל`, clears suspension reason/date.
+
+#### Suspension Reasons (v5.0.5+)
+- **`getSuspensionReasons()`** — Returns all reasons from suspension reasons sheet.
+- **`getActiveSuspensionReasons()`** — Returns only active reasons (column B = `כן`).
+- **`addSuspensionReason(reason)`** — Adds new reason to suspension reasons sheet.
+- **`toggleSuspensionReason(index, active)`** — Toggles reason active/inactive status.
 
 #### Instructor Data
 - **`getInstructorData(tz)`** — Returns one instructor's record: `{tz, name, deputy, phone, email}`. Looks up by ת.ז. in instructor sheet.
@@ -209,38 +237,43 @@ Complete list of every function organized by file:
 - **`normalizePhone(val)`** — Normalizes phone number: removes hyphens/spaces, adds leading `0` if missing. Returns 10-digit string.
 - **`parseDate(dateStr)`** — Parses dd/MM/yyyy to JavaScript Date object. Used for date validation.
 
-### pages.gs (~900 lines)
+### pages.gs (~1300 lines)
+
+#### Shared Functions (v5.2.0)
+- **`getBaseCSS()`** — Returns shared CSS string used by all pages. Single source of truth for: reset, body, container, section cards, headings, fields (label/input/select/focus/readonly), buttons (all color variants + disabled), toast, spinner. See `doc/GUI_GUIDELINES.md` §5.1 for full contents.
+- **`getZoomScript(desktopMaxWidth, adminFlag)`** — Returns `<script>` tag with mobile zoom detection. Compares `window.innerWidth` vs `screen.width` to detect GAS iframe on mobile, applies CSS `zoom`. `desktopMaxWidth` sets container max-width on desktop. `adminFlag` sets `window._adminZoomed` for conditional zoom removal. See `doc/GUI_GUIDELINES.md` §3-4.
 
 #### Navigation & Landing
-- **`getLandingHtml()`** — Landing page with 3 navigation cards: "הרשמה" (Register), "סקר נוכחות" (Poll), "הוראה" (Instructor). Returns complete HTML page.
+- **`getLandingHtml()`** — Landing page with 3 navigation cards: "הרשמה" (Register), "סקר נוכחות" (Poll), "הוראה" (Instructor). Uses `getBaseCSS()` + `getZoomScript()`. Top-aligned (not vertically centered).
 
 #### Trainee Pages
-- **`getLookupHtml(prefillTz)`** — Registration page. Includes ת.ז. lookup form, edit mode toggle, all trainee fields (name, phone, 4 tool groups). If prefillTz provided, loads existing data. **Includes OTP flow**: showOTPStep, doVerifyOTP, doResendOTP, showEmailStep, doSendEmailOTP — for trainees without Google session. Returns complete HTML page.
-- **`getPollHtml(sessionId)`** — Attendance poll page. Session picker dropdown (loads active sessions), attendance form (name field, attending dropdown, bullet count, notes, tool selector), submit button. **Includes OTP flow**: same hybrid auth UI as register page — showOTPStep, doVerifyOTP, doResendOTP, showEmailStep, doSendEmailOTP. Returns complete HTML page.
+- **`getLookupHtml(prefillTz)`** — Registration page. TZ entry in centered `.section` card (matches instructor/admin login style). Includes ת.ז. lookup, edit mode, all trainee fields, OTP flow. **Checks trainee status (v5.0.0)** — blocks suspended trainees. **Supports simplified auth (v5.1.0)** — skips OTP if `דא=כן` for non-Gmail. **Supports admin edit mode** — `?tz=X` from admin dashboard bypasses OTP (v5.0.3). Uses `getBaseCSS()` + `getZoomScript('520px')`.
+- **`getPollHtml(sessionId)`** — Attendance poll page. Session picker, attendance form, tool selector, OTP flow. **Checks trainee status** — blocks suspended trainees. **Supports simplified auth**. Uses `getBaseCSS()` + `getZoomScript('520px')`.
 
 #### Instructor & Admin Pages
-- **`getInstructorDashboardHtml()`** — Instructor login + session management. Login by TZ, **OTP verification UI** (v4.2.3): if no Google session, sends OTP and shows 6-digit code input. After auth: session table (create new, list with edit/share/WhatsApp/print/close buttons), share message builder. **Print button calls `issuePrintToken()` and opens `printVerified` route.** **NEW (v4.2.9): Attendance override — "רשימת מגיעים" button on active sessions (both main instructor and deputy). Shows editable list of trainees with checkboxes and ammo fields. Calls `getSessionResponses()` and `updateSessionResponse()`.** Returns complete HTML page.
-- **`getAdminDashboardHtml()`** — Admin overview page. Active sessions list with close buttons, spreadsheet quick links, "אימונים לפי מדריך" (Sessions by Instructor) table. **NEW (v4.2.4): Close button ("סגור") on active sessions — calls `closeSession()` with confirmation dialog. (v4.2.7): Replaced broken stats with active sessions list.** Returns complete HTML page.
+- **`getInstructorDashboardHtml()`** — Instructor login + session management. Login by TZ with OTP fallback. Session table with create/share/WhatsApp/print/close/attendance buttons. **Includes admin link** (v5.0.0) — if instructor has admin flag, shows "לוח ניהול" button. Uses `getBaseCSS()` + `getZoomScript('900px')`.
+- **`getAdminDashboardHtml()`** — Admin dashboard (v5.0.0 rewrite). TZ login with OTP. 4 sections: sessions, instructors, trainees, suspensions. **Owner-only panels** (v5.0.9): spreadsheet links, suspension reasons management — visible only to `isOwnerByTz()`. **Conditional zoom** (v5.1.9): zoom applied during TZ login, removed when entering dashboard (complex tables break with zoom). Uses `getBaseCSS()` + `getZoomScript(null, true)`.
 
 #### Reporting
 - **`getPrintHtml(sessionId)`** — A4 landscape attendance printout. Reads poll responses filtered by sessionId, formats as attendance table with instructor, date, trainee names, attending status, bullets. Returns complete HTML page with print CSS.
 - **`getPrintOtpGateHtml(sessionId)`** — NEW (v4.2.3). Standalone OTP gate page for print access when no Google session. Two-step: enter ת.ז. → verify against `isSessionAuthorizedByTz` → send OTP → verify → redirect to `printVerified` with one-time token.
 
-### setup.gs (165 lines)
+### setup.gs (~305 lines)
 
 #### Sheet Initialization
-- **`setupSourceSheet()`** — Initializes/formats source spreadsheet. Creates headers, sets column widths, formats cells. Wraps formatting calls in try/catch (due to Google Sheets "Table" feature).
-- **`setupResponseSheet()`** — Initializes/formats response spreadsheet. Creates headers, formats poll response columns.
-- **`setupInstructorSheet()`** — Initializes/formats instructor spreadsheet. Creates headers, adds instructors if not present.
-- **`setupSessionsSheet()`** — Initializes/formats sessions spreadsheet. Creates headers, sets column formats.
-- **`setupAll()`** — Runs all 4 setup functions in sequence.
+- **`setupSourceSheet()`** — Initializes/formats source spreadsheet. Creates headers incl. status columns (V-X) and דא column (Y). Adds data validation dropdowns for status. `SpreadsheetApp.flush()` for Table compatibility.
+- **`setupResponseSheet()`** — Initializes/formats response spreadsheet. Creates headers, formats poll response columns. Data validation dropdowns.
+- **`setupInstructorSheet()`** — Initializes/formats instructor spreadsheet. Creates headers incl. אדמין column (F). Data validation dropdowns.
+- **`setupSessionsSheet()`** — Initializes/formats sessions spreadsheet. Creates headers, sets column formats. Data validation dropdowns.
+- **`setupSuspensionReasonsSheet()`** — NEW (v5.0.5). Creates/formats suspension reasons spreadsheet with headers and validation.
+- **`setupAll()`** — Runs all 5 setup functions in sequence. **Installs triggers** (v5.0.9).
 
 #### Auto-Close Trigger Management (v4.2.4)
 - **`installAutoCloseTrigger()`** — Creates a daily time-driven trigger running `autoClosePastSessions` at ~02:00 Israel time. Removes any existing auto-close trigger first.
 - **`removeAutoCloseTrigger()`** — Removes the auto-close trigger by handler function name.
 
 #### Debugging
-- **`debugTraineeData()`** — Debug helper. Logs first 5 trainees and their tool info to browser console. Used for troubleshooting data load.
+- **`debugTraineeData()`** — Debug helper. Logs first 5 trainees and their tool info to browser console.
 
 ### logo.gs (~110KB)
 
@@ -459,9 +492,10 @@ Consistent styling across all pages:
 |---------|-------|
 | **Direction** | RTL (right-to-left) |
 | **Language** | Hebrew (`lang="he"`) |
-| **Viewport** | `width=device-width, initial-scale=1` |
-| **Max Width** | 1200px (admin/instructor pages) |
-| **Responsive Breakpoints** | Mobile-first (no specific breakpoints — full responsive) |
+| **Viewport** | `width=device-width, initial-scale=1` (NOTE: ignored by GAS iframe — see GUI_GUIDELINES.md) |
+| **Max Width** | 520px (register/poll), 900px (instructor/admin) — set via `getZoomScript()` |
+| **Mobile Detection** | CSS `zoom` via `screen.width` vs `window.innerWidth` comparison (NOT @media queries) |
+| **Shared CSS** | `getBaseCSS()` — single source of truth for all page styling (v5.2.0) |
 
 ### Interactive Elements
 - **Buttons**: Hover = brighter blue (`#60a5fa`), active = darker blue (`#3b82f6`)
@@ -719,11 +753,11 @@ if (REQUIRE_LOGIN && isProtectedRoute) {
 |-------|--------|-------------|-------------|
 | Landing, Register, Poll | Yes | OTP or Google session | Open access, email captured silently |
 | Instructor Dashboard | Yes | Client-side: ת.ז. + Google or OTP | Instructor login + session CRUD |
-| Admin Dashboard | No | `isAdminEmail()` | Admin stats + overview |
+| Admin Dashboard | Yes | Client-side: TZ + `isAdminByTz()` + Google/OTP | Admin management + owner panels |
 | Print | Yes | Google session or OTP gate | Session-scoped via `isSessionAuthorized`/`isSessionAuthorizedByTz` |
 | PrintVerified | Yes | One-time token (60s) | Print page after OTP verification |
 | Status | Yes | Called from authenticated dashboard | JSON response counts |
-| Debug | Yes | None | Diagnostic info page |
+| Debug | No | `OWNER_EMAILS` email check | Diagnostic info page (v5.0.12: gated) |
 
 ## 11. Constants Reference
 
@@ -731,7 +765,7 @@ All constants defined in `config.gs`:
 
 ```javascript
 // Version (sync across ALL .gs files)
-var SCRIPT_VERSION = '4.2.9';
+var SCRIPT_VERSION = '5.2.0';
 
 // Sheet limits
 var MAX_TOOLS = 4;
@@ -741,6 +775,7 @@ var SOURCE_SHEET_ID = '182Kp5-vTABvRZ8VA3W0rqhAs5933yqe1YNdN61w-ACo';
 var RESPONSE_SHEET_ID = '1wl4lUd3_XKLGDY58jilUae43xIH8BJtnGOgNmuF-SAQ';
 var INSTRUCTOR_SHEET_ID = '1jTnZacJEKGiksJJfaIPB3sp29uHjsfrGv1Vic6v4Gls';
 var SESSIONS_SHEET_ID = '1hrsIxwkckoc_Od4gSinM07XiRVhiSo9pYW2--bbBumI';
+var SUSPENSION_REASONS_SHEET_ID = '1E3htH5udGPwgnqvOC6cJbtEjG0cva1EdDG_v1SByENQ';
 
 // Instructor IDs (for direct login bypass or default instructor)
 var INSTRUCTOR_TZ = '319253233';
@@ -748,8 +783,8 @@ var INSTRUCTOR_TZ = '319253233';
 // Deployed web app URL (used for share links)
 var WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbygdC5WloMaLUJ8xN3zmRihr8_bUAVus9arG071q5VUIbs_vrAo_kTXwCPF0tGB9ytI/exec';
 
-// Admin emails — array supports multiple admins
-var ADMIN_EMAILS = ['kommisar@gmail.com'];
+// Owner emails — system owners with full access (renamed from ADMIN_EMAILS in v5.0.0)
+var OWNER_EMAILS = ['kommisar@gmail.com'];
 
 // Security — When true, enforces server-side auth on protected routes and trainee email verification
 var REQUIRE_LOGIN = true;
@@ -801,6 +836,7 @@ clasp push
 - **doc/ROADMAP_v5.md** — Roadmap: what's done, what remains, future considerations
 - **doc/DOC_GUIDELINES.md** — Manual formatting specs and creation workflow
 - **doc/AUDIT_v5011.md** — v5.0.11 audit report
+- **doc/GUI_GUIDELINES.md** — GAS iframe rendering, mobile/desktop detection, CSS zoom, shared CSS architecture, rules for future updates
 
 ### User Manuals (in `manuals/`)
 - **manuals/מדריך_למדריך_v5012.docx** — Hebrew instructor manual (v5.0.12, reference template for all manuals)
@@ -1110,4 +1146,4 @@ Use XML entities for Hebrew-compatible quotes and apostrophes:
 
 ---
 
-**Last Updated**: 2026-04-16 | **Version**: 4.2.9 | **Agent Ready**: Yes
+**Last Updated**: 2026-04-18 | **Version**: 5.2.0 | **Agent Ready**: Yes

@@ -1,4 +1,4 @@
-// routing.gs — אימוני ירי v5.0.12
+// routing.gs — אימוני ירי v5.2.0
 
 var DENY_HTML = '<html dir="rtl"><body style="background:#0f172a;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;font-family:Segoe UI,Tahoma,Arial,sans-serif"><div style="text-align:center;padding:40px;color:#f87171;font-size:18px">אין הרשאה — גישה למורשים בלבד</div></body></html>';
 
@@ -96,7 +96,7 @@ function doGet(e) {
   if (action === 'debug') {
     var debugEmail = '';
     try { debugEmail = Session.getActiveUser().getEmail(); } catch(err) { debugEmail = 'ERROR: ' + err.message; }
-    // Gate: owner only (v5.0.12)
+    // Gate: owner only (v5.1.0)
     if (!isOwnerEmail(debugEmail)) {
       return HtmlService.createHtmlOutput(DENY_HTML)
         .setTitle('אין הרשאה')

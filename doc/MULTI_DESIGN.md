@@ -1,6 +1,6 @@
 # Multi-Instructor Support — Implementation Design
 
-**Status: IMPLEMENTED — v5.0.9 (April 2026 — 4-Tier Role System + Suspension Management + Deputy Support + OTP Auth + Backups + Auto-Close)**
+**Status: IMPLEMENTED — v5.2.0 (April 2026 — 4-Tier Role System + Suspension Management + Deputy Support + OTP Auth + Simplified Auth + Unified CSS + Mobile Zoom Fix + Backups + Auto-Close)**
 
 ## Goal
 

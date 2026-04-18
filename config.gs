@@ -1,6 +1,6 @@
-// config.gs — אימוני ירי v5.0.12
+// config.gs — אימוני ירי v5.2.0
 
-var SCRIPT_VERSION = '5.0.12';
+var SCRIPT_VERSION = '5.2.0';
 var MAX_TOOLS = 4;
 var SOURCE_SHEET_ID = '182Kp5-vTABvRZ8VA3W0rqhAs5933yqe1YNdN61w-ACo';
 var RESPONSE_SHEET_ID = '1wl4lUd3_XKLGDY58jilUae43xIH8BJtnGOgNmuF-SAQ';

@@ -1,13 +1,72 @@
-// pages.gs — אימוני ירי v5.0.12
+// pages.gs — אימוני ירי v5.2.0
+
+// =====================================================
+// Shared CSS & responsive helpers (single source of truth)
+// =====================================================
+
+/**
+ * Base CSS shared by all pages. Includes:
+ *   reset, body base, .container, .section, .field,
+ *   .btn colors, .toast, .spinner, badges
+ * Each page adds layout overrides (body padding, btn display/size, etc.)
+ */
+function getBaseCSS() {
+  return '*{box-sizing:border-box;margin:0;padding:0}'
+  + 'body{font-family:Segoe UI,Tahoma,Arial,sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh}'
+  + '.container{max-width:100%;margin:0 auto}'
+  + '.section{background:#1e293b;border:1px solid #334155;border-radius:12px;padding:24px 16px;margin-bottom:24px}'
+  + 'h1{color:#f8fafc}'
+  + '.field{margin-bottom:14px}'
+  + '.field label{display:block;color:#94a3b8;font-size:13px;margin-bottom:6px}'
+  + '.field input,.field select{width:100%;padding:10px 14px;border-radius:10px;border:1px solid #475569;background:#0f172a;color:#e2e8f0;font-size:15px;font-family:inherit}'
+  + '.field input:focus,.field select:focus{outline:none;border-color:#3b82f6}'
+  + '.field input[readonly]{opacity:.6;cursor:not-allowed}'
+  + '.btn{border-radius:10px;font-weight:600;cursor:pointer;border:none;font-family:inherit;transition:all .2s}'
+  + '.btn:disabled{opacity:.5;cursor:not-allowed}'
+  + '.btn-primary{background:#3b82f6;color:#fff}.btn-primary:hover{background:#2563eb}'
+  + '.btn-save{background:#16a34a;color:#fff}.btn-save:hover{background:#15803d}'
+  + '.btn-success{background:#16a34a;color:#fff}.btn-success:hover{background:#15803d}'
+  + '.btn-danger{background:#dc2626;color:#fff}.btn-danger:hover{background:#b91c1c}'
+  + '.btn-new{background:#7c3aed;color:#fff}.btn-new:hover{background:#6d28d9}'
+  + '.btn-back{background:#475569;color:#fff}.btn-back:hover{background:#64748b}'
+  + '.btn-small{padding:8px 16px;font-size:13px}'
+  + '.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);padding:14px 28px;border-radius:10px;font-size:15px;font-weight:600;display:none;z-index:999}'
+  + '.toast.show{display:block}'
+  + '.toast.success{background:#16a34a;color:#fff}'
+  + '.toast.error{background:#dc2626;color:#fff}'
+  + '.spinner{display:none;text-align:center;padding:20px;color:#60a5fa}'
+  + '.spinner.show{display:block}';
+}
+
+/**
+ * Zoom script for GAS iframe mobile fix + desktop max-width.
+ * On mobile (viewport > 1.5x screen width): applies CSS zoom.
+ * On desktop: sets container max-width for proper layout.
+ *
+ * @param {string} desktopMaxWidth — e.g. '520px', '900px', or null for no constraint
+ * @param {boolean} adminFlag — if true, sets window._adminZoomed for later unzoom
+ * @returns {string} — full <script>...</script> tag
+ */
+function getZoomScript(desktopMaxWidth, adminFlag) {
+  var s = '<script>(function(){var vw=window.innerWidth,sw=screen.width;if(vw>sw*1.5){var z=vw/sw;document.body.style.zoom=z;document.body.style.width=(vw/z)+"px";document.body.style.overflowX="hidden"';
+  if (adminFlag) s += ';window._adminZoomed=true';
+  s += '}';
+  if (desktopMaxWidth) s += 'else{var c=document.querySelector(".container");if(c){c.style.maxWidth="' + desktopMaxWidth + '"}}';
+  s += '})()</script>';
+  return s;
+}
+
+// =====================================================
+// Landing Page
+// =====================================================
 
 function getLandingHtml() {
   return '<!DOCTYPE html><html lang="he" dir="rtl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">'
 +'<title>הכשרת ירי</title>'
-+'<style>'
-+'*{box-sizing:border-box;margin:0;padding:0}'
-+'body{font-family:Segoe UI,Tahoma,Arial,sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}'
++'<style>' + getBaseCSS()
++'body{display:flex;align-items:flex-start;justify-content:center;padding:40px 24px 24px}'
 +'.container{max-width:600px;width:100%;text-align:center}'
-+'h1{font-size:32px;color:#f8fafc;margin-bottom:12px}'
++'h1{font-size:32px;margin-bottom:12px}'
 +'p.subtitle{color:#94a3b8;font-size:16px;margin-bottom:48px;line-height:1.6}'
 +'.nav-cards{display:grid;grid-template-columns:1fr;gap:16px;margin-bottom:24px}'
 +'.card{background:#1e293b;border:1px solid #334155;border-radius:16px;padding:32px;text-decoration:none;color:inherit;transition:all .3s;display:flex;flex-direction:column;align-items:center;text-align:center}'
@@ -25,47 +84,39 @@ function getLandingHtml() {
 +'<a href="' + WEBAPP_URL + '?action=poll" class="card"><div class="card-icon">📋</div><h2>מתאמן? סקר נוכחות</h2><p>סימון הגעה לאימון עם פרטי הנשק</p></a>'
 +'</div>'
 +'</div>'
++ getZoomScript()
 +'</body></html>';
 }
+
+// =====================================================
+// Register Page — רישום מתאמנים
+// =====================================================
 
 function getLookupHtml(prefillTz, adminMode) {
   return '<!DOCTYPE html><html lang="he" dir="rtl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">'
   +'<title>\u05E8\u05D9\u05E9\u05D5\u05DD \u05DE\u05EA\u05D0\u05DE\u05E0\u05D9\u05DD</title>'
-  +'<style>'
-  +'*{box-sizing:border-box;margin:0;padding:0}'
-  +'body{font-family:Segoe UI,Tahoma,Arial,sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh;padding:24px}'
-  +'.container{background:#1e293b;border-radius:16px;padding:32px;max-width:520px;width:100%;border:1px solid #334155;margin:80px auto 0}'
-  +'h1{font-size:22px;color:#f8fafc;margin-bottom:8px;text-align:center}'
+  +'<style>' + getBaseCSS()
+  +'body{padding:24px}'
+  +'.container{padding:0 16px}'
+  +'h1{font-size:22px;margin-bottom:8px;text-align:center}'
   +'p.sub{color:#94a3b8;font-size:14px;text-align:center;margin-bottom:24px}'
-  +'.field{margin-bottom:14px}'
-  +'.field label{display:block;color:#94a3b8;font-size:13px;margin-bottom:6px}'
-  +'.field input,.field select{width:100%;padding:10px 14px;border-radius:10px;border:1px solid #475569;background:#0f172a;color:#e2e8f0;font-size:15px;font-family:inherit}'
-  +'.field input:focus,.field select:focus{outline:none;border-color:#3b82f6}'
-  +'.field input[readonly]{opacity:.6;cursor:not-allowed}'
-  +'.btn{display:block;width:100%;padding:14px;border-radius:10px;font-size:16px;font-weight:600;cursor:pointer;border:none;font-family:inherit;transition:all .2s}'
-  +'.btn-primary{background:#3b82f6;color:#fff}.btn-primary:hover{background:#2563eb}'
-  +'.btn-save{background:#16a34a;color:#fff;margin-top:16px}.btn-save:hover{background:#15803d}'
-  +'.btn-new{background:#7c3aed;color:#fff;margin-top:16px;cursor:pointer}.btn-new:hover{background:#6d28d9}'
-  +'.btn:disabled{opacity:.5;cursor:not-allowed}'
+  +'.btn{display:block;width:100%;padding:14px;font-size:16px}'
+  +'.btn-save{margin-top:16px}'
+  +'.btn-new{margin-top:16px;cursor:pointer}'
   +'.result{margin-top:20px;display:none}'
-  +'.result.show{display:block}'
+  +'.result.show{display:block;background:#1e293b;border:1px solid #334155;border-radius:12px;padding:20px}'
   +'.card{background:#0f172a;border:1px solid #334155;border-radius:12px;padding:20px;margin-bottom:12px}'
   +'.card h3{color:#60a5fa;font-size:16px;margin-bottom:12px}'
   +'.tool-section{background:#162033;border:1px solid #334155;border-radius:10px;padding:16px;margin-top:12px}'
   +'.tool-section h4{color:#4ade80;font-size:14px;margin-bottom:12px}'
   +'.not-found{text-align:center;padding:20px;color:#fbbf24;font-size:15px}'
-  +'.spinner{display:none;text-align:center;padding:20px;color:#60a5fa}'
-  +'.spinner.show{display:block}'
-  +'.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);padding:14px 28px;border-radius:10px;font-size:15px;font-weight:600;display:none;z-index:999}'
-  +'.toast.show{display:block}'
-  +'.toast.success{background:#16a34a;color:#fff}'
-  +'.toast.error{background:#dc2626;color:#fff}'
   +'.field-hint{color:#64748b;font-size:11px;margin-top:3px}'
 +'.field-hint.warn{color:#f59e0b}'
 +'a.link{color:#60a5fa;text-decoration:none}a.link:hover{text-decoration:underline}'
-  +'</style></head><body>'
++'</style></head><body>'
   +'<div id="toast" class="toast"></div>'
   +'<div class="container">'
+  +'<div id="tzArea" class="section" style="max-width:420px;margin:40px auto">'
   +'<h1>\u05E8\u05D9\u05E9\u05D5\u05DD \u05DE\u05EA\u05D0\u05DE\u05E0\u05D9\u05DD</h1>'
   +'<p class="sub">\u05D4\u05D6\u05DF \u05EA.\u05D6. \u05DC\u05D7\u05D9\u05E4\u05D5\u05E9/\u05E2\u05D3\u05DB\u05D5\u05DF \u05E8\u05D9\u05E9\u05D5\u05DD \u05E7\u05D9\u05D9\u05DD, \u05D0\u05D5 \u05DC\u05D7\u05E5 \u05DC\u05E8\u05D9\u05E9\u05D5\u05DD \u05D7\u05D3\u05E9</p>'
   +'<div class="field"><label>\u05EA\u05E2\u05D5\u05D3\u05EA \u05D6\u05D4\u05D5\u05EA</label>'
@@ -73,6 +124,7 @@ function getLookupHtml(prefillTz, adminMode) {
   +'<div class="field-hint">\u05E1\u05E4\u05E8\u05D5\u05EA \u05D1\u05DC\u05D1\u05D3, 8\u20139 \u05EA\u05D5\u05D5\u05D9\u05DD</div></div>'
   +'<button class="btn btn-primary" id="searchBtn" onclick="doSearch()" style="width:100%">\u05D7\u05E4\u05E9 / \u05E8\u05D9\u05E9\u05D5\u05DD \u05D7\u05D3\u05E9</button>'
   +'<div class="spinner" id="spinner">\u05DE\u05D7\u05E4\u05E9...</div>'
+  +'</div>'
   +'<div class="result" id="result"></div>'
   +'</div>'
   +'<script>'
@@ -259,7 +311,8 @@ function getLookupHtml(prefillTz, adminMode) {
   +'var ADMIN_MODE=' + (adminMode ? 'true' : 'false') + ';'
   +'if(ADMIN_MODE){document.querySelector("h1").textContent="\u05E2\u05E8\u05D9\u05DB\u05EA \u05E4\u05E8\u05D8\u05D9 \u05DE\u05EA\u05D0\u05DE\u05DF (\u05DE\u05E0\u05D4\u05DC)";document.querySelector("p.sub").textContent="\u05DE\u05E6\u05D1 \u05E2\u05E8\u05D9\u05DB\u05D4 \u05E2\u05DC \u05D9\u05D3\u05D9 \u05DE\u05E0\u05D4\u05DC";}'
   +'if(PREFILL_TZ){document.getElementById("tzInput").value=PREFILL_TZ;doSearch()}'
-  +'<\/script></body></html>';
+  +'<\/script>' + getZoomScript('520px')
+  +'</body></html>';
 }
 
 // =====================================================
@@ -273,16 +326,14 @@ function getPollHtml(sessionId) {
   var sessionsJson = JSON.stringify(activeSessions).replace(/'/g, "\\'").replace(/<\//g, '<\\/');
   return '<!DOCTYPE html><html lang="he" dir="rtl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">'
   +'<title>\u05E1\u05E7\u05E8 \u05E0\u05D5\u05DB\u05D7\u05D5\u05EA</title>'
-  +'<style>'
-  +'*{box-sizing:border-box;margin:0;padding:0}'
-  +'body{font-family:Segoe UI,Tahoma,Arial,sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh;padding:24px}'
-  +'.container{background:#1e293b;border-radius:16px;padding:32px;max-width:500px;width:100%;border:1px solid #334155;margin:80px auto 0}'
-  +'h1{font-size:22px;color:#f8fafc;margin-bottom:8px;text-align:center}'
+  +'<style>' + getBaseCSS()
+  +'body{padding:24px}'
+  +'.container{background:#1e293b;border:1px solid #334155;border-radius:12px;padding:24px 16px;max-width:100%;width:100%;margin:0 auto}'
+  +''
+  +'h1{font-size:22px;margin-bottom:8px;text-align:center}'
   +'p.sub{color:#94a3b8;font-size:14px;text-align:center;margin-bottom:24px}'
   +'.field{margin-bottom:16px}'
-  +'.field label{display:block;color:#94a3b8;font-size:13px;margin-bottom:6px}'
-  +'.field input,.field select,.field textarea{width:100%;padding:12px 14px;border-radius:10px;border:1px solid #475569;background:#0f172a;color:#e2e8f0;font-size:15px;font-family:inherit}'
-  +'.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:#3b82f6}'
+  +'.field input,.field select,.field textarea{padding:12px 14px}'
   +'.field textarea{resize:vertical;min-height:60px}'
   +'.radio-group{display:flex;gap:12px;margin-top:6px}'
   +'.radio-group label{display:flex;align-items:center;gap:8px;padding:12px 20px;border-radius:10px;border:2px solid #475569;cursor:pointer;font-size:16px;font-weight:600;transition:all .2s;flex:1;justify-content:center}'
@@ -291,19 +342,12 @@ function getPollHtml(sessionId) {
   +'.radio-group .no{border-color:#dc2626;background:#dc262622;color:#f87171}'
   +'.radio-group label:has(input:checked).yes{background:#16a34a;color:#fff}'
   +'.radio-group label:has(input:checked).no{background:#dc2626;color:#fff}'
-  +'.btn{display:block;width:100%;padding:14px;border-radius:10px;font-size:16px;font-weight:600;cursor:pointer;border:none;font-family:inherit;transition:all .2s}'
-  +'.btn-primary{background:#3b82f6;color:#fff;margin-top:8px}.btn-primary:hover{background:#2563eb}'
+  +'.btn{display:block;width:100%;padding:14px;font-size:16px}'
+  +'.btn-primary{margin-top:8px}'
   +'.btn-register{background:#7c3aed;color:#fff;margin-top:16px;text-decoration:none;text-align:center;display:block;padding:14px;border-radius:10px;font-size:16px;font-weight:600}'
   +'.btn-register:hover{background:#6d28d9}'
-  +'.btn:disabled{opacity:.5;cursor:not-allowed}'
-  +'.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);padding:14px 28px;border-radius:10px;font-size:15px;font-weight:600;display:none;z-index:999}'
-  +'.toast.show{display:block}'
-  +'.toast.success{background:#16a34a;color:#fff}'
-  +'.toast.error{background:#dc2626;color:#fff}'
   +'.success-msg{text-align:center;padding:30px;color:#4ade80;font-size:18px;font-weight:600}'
   +'.not-found{text-align:center;padding:24px;color:#fbbf24;font-size:15px;line-height:1.6}'
-  +'.spinner{display:none;text-align:center;padding:16px;color:#60a5fa}'
-  +'.spinner.show{display:block}'
   +'.trainee-name{text-align:center;color:#4ade80;font-size:18px;font-weight:600;margin-bottom:16px}'
   +'.existing-notice{background:#fbbf2422;border:1px solid #fbbf24;border-radius:10px;padding:14px;margin-bottom:16px;color:#fbbf24;font-size:14px;line-height:1.6;text-align:center}'
   +'.existing-notice strong{color:#fde68a}'
@@ -560,7 +604,8 @@ function getPollHtml(sessionId) {
   +'}).requestOTPForEmail(currentTz,email)});}'
 
   +'document.getElementById("tzInput").addEventListener("keydown",function(e){if(e.key==="Enter")doLookup()})'
-  +'<\/script></body></html>';
+  +'<\/script>' + getZoomScript('520px')
+  +'</body></html>';
 }
 
 // =====================================================
@@ -745,21 +790,16 @@ function getPrintHtml(sessionId) {
 function getInstructorDashboardHtml() {
   return '<!DOCTYPE html><html lang="he" dir="rtl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">'
 +'<title>לוח מדריך</title>'
-+'<style>'
-+'*{box-sizing:border-box;margin:0;padding:0}'
-+'body{font-family:Segoe UI,Tahoma,Arial,sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh;padding:24px}'
-+'.container{max-width:800px;margin:0 auto}'
-+'h1{color:#f8fafc;margin-bottom:8px}'
++'<style>' + getBaseCSS()
++'body{padding:24px}'
++'.container{max-width:100%;margin:0 auto;padding:0 16px}'
++''
++'h1{margin-bottom:8px}'
 +'p.subtitle{color:#94a3b8;margin-bottom:24px}'
-+'.section{background:#1e293b;border:1px solid #334155;border-radius:16px;padding:32px;margin-bottom:24px}'
++'.section{padding:20px 16px}'
 +'.section h2{color:#60a5fa;margin-bottom:16px;font-size:18px}'
-+'.field{margin-bottom:14px}'
-+'.field label{display:block;color:#94a3b8;font-size:13px;margin-bottom:6px}'
-+'.field input{width:100%;padding:10px 14px;border-radius:10px;border:1px solid #475569;background:#0f172a;color:#e2e8f0;font-size:15px}'
-+'.field input:focus{outline:none;border-color:#3b82f6}'
-+'.btn{display:inline-block;padding:14px 28px;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;border:none;font-family:inherit;transition:all .2s}'
-+'.btn-primary{background:#3b82f6;color:#fff}.btn-primary:hover{background:#2563eb}'
-+'.btn:disabled{opacity:.5;cursor:not-allowed}'
++'.field input{padding:10px 14px}'
++'.btn{display:inline-block;padding:14px 28px;font-size:15px}'
 +'.btn-new{background:#7c3aed;color:#fff}.btn-new:hover{background:#6d28d9}'
 +'.sessions-list{display:grid;gap:12px}'
 +'.session-card{background:#0f172a;border:1px solid #334155;border-radius:12px;padding:16px 20px;display:flex;flex-direction:column;gap:10px}'
@@ -768,16 +808,13 @@ function getInstructorDashboardHtml() {
 +'.status-badge{display:inline-block;padding:4px 12px;border-radius:6px;font-size:12px;font-weight:600}'
 +'.status-active{background:#16a34a22;color:#4ade80}'
 +'.status-closed{background:#64748b22;color:#cbd5e1}'
-+'.btn-small{padding:6px 10px;font-size:12px;white-space:nowrap}'
++'.btn-small{padding:10px 14px;font-size:13px;white-space:nowrap}'
 +'.btn-share{background:#0ea5e9;color:#fff}.btn-share:hover{background:#0284c7}'
 +'.btn-success{background:#16a34a;color:#fff}.btn-success:hover{background:#15803d}'
 +'.resp-badge{display:inline-block;padding:4px 10px;border-radius:6px;font-size:12px;background:#16a34a22;color:#4ade80}'
 +'.resp-badge.zero{background:#64748b22;color:#94a3b8}'
 +'.session-actions{display:flex;flex-wrap:wrap;gap:6px;align-items:center}'
 +'.top-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:8px}'
-+'.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);padding:14px 28px;border-radius:10px;font-size:15px;font-weight:600;display:none;z-index:999}'
-+'.toast.show{display:block}'
-+'.toast.success{background:#16a34a;color:#fff}'
 +'.deputy-badge{display:inline-block;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:600;background:#7c3aed22;color:#a78bfa;margin-right:6px}'
 +'.field select{width:100%;padding:10px 14px;border-radius:10px;border:1px solid #475569;background:#0f172a;color:#e2e8f0;font-size:15px}'
 +'.field select:focus{outline:none;border-color:#3b82f6}'
@@ -796,6 +833,7 @@ function getInstructorDashboardHtml() {
 +'.btn-back{background:#475569;color:#fff}.btn-back:hover{background:#64748b}'
 +'.btn-save{background:#16a34a;color:#fff}.btn-save:hover{background:#15803d}'
 +'.btn-att{background:#8b5cf6;color:#fff}.btn-att:hover{background:#7c3aed}'
++''
 +'</style></head><body>'
 +'<div id="toast" class="toast"></div>'
 +'<div class="container">'
@@ -840,7 +878,7 @@ function getInstructorDashboardHtml() {
 
 +'function doLogin(){var tz=document.getElementById("tzInput").value.trim();if(!tz){alert("\u05D4\u05D6\u05DF \u05EA.\u05D6.");return;}var btn=event.target.closest("button");withLoading(btn,function(done){google.script.run.withSuccessHandler(function(inst){if(!inst.name){done();alert("\u05DE\u05D3\u05E8\u05D9\u05DA \u05DC\u05D0 \u05E0\u05DE\u05E6\u05D0");return;}currentInstructor=inst;google.script.run.withSuccessHandler(function(auth){done();if(auth.authenticated){enterDashboard();}else if(auth.needsOtp){sendInstructorOtp();}else{alert(auth.message||"\u05D0\u05D9\u05DF \u05D4\u05E8\u05E9\u05D0\u05D4");}}).withFailureHandler(function(e){done();alert("\u05E9\u05D2\u05D9\u05D0\u05D4: "+e.message);}).checkInstructorAuth(tz);}).withFailureHandler(function(e){done();alert("\u05E9\u05D2\u05D9\u05D0\u05D4: "+e.message);}).getInstructorData(tz);});}'
 
-+'function enterDashboard(){document.getElementById("loginArea").style.display="none";document.getElementById("otpArea").style.display="none";document.getElementById("pageHeader").style.display="block";document.getElementById("dashboardArea").style.display="block";document.getElementById("welcomeMsg").textContent="\u05E9\u05DC\u05D5\u05DD, "+currentInstructor.name;if(currentInstructor.admin){var slot=document.getElementById("adminLinkSlot");slot.innerHTML=\'<a href="' + WEBAPP_URL + '?action=admin" class="btn btn-new" style="text-decoration:none">\u05DC\u05D5\u05D7 \u05E0\u05D9\u05D4\u05D5\u05DC \u2192</a>\';}loadDeputyOptions();loadSessions();}'
++'function enterDashboard(){document.getElementById("loginArea").style.display="none";document.getElementById("otpArea").style.display="none";document.getElementById("pageHeader").style.display="block";document.getElementById("dashboardArea").style.display="block";document.getElementById("welcomeMsg").textContent="\u05E9\u05DC\u05D5\u05DD, "+currentInstructor.name;if(currentInstructor.admin){var slot=document.getElementById("adminLinkSlot");slot.innerHTML=\'<a href="' + WEBAPP_URL + '?action=admin" target="_blank" class="btn btn-new" style="text-decoration:none">\u05DC\u05D5\u05D7 \u05E0\u05D9\u05D4\u05D5\u05DC \u2192</a>\';}loadDeputyOptions();loadSessions();}'
 
 +'function sendInstructorOtp(){google.script.run.withSuccessHandler(function(r){if(r.success){document.getElementById("loginArea").style.display="none";document.getElementById("otpArea").style.display="block";document.getElementById("otpMsg").textContent="\u05E7\u05D5\u05D3 \u05D0\u05D9\u05DE\u05D5\u05EA \u05E0\u05E9\u05DC\u05D7 \u05DC: "+r.maskedEmail;document.getElementById("otpInput").value="";document.getElementById("otpInput").focus();}else{alert(r.message);}}).withFailureHandler(function(e){alert("\u05E9\u05D2\u05D9\u05D0\u05D4: "+e.message);}).requestInstructorOTP(currentInstructor.tz);}'
 
@@ -905,7 +943,8 @@ function getInstructorDashboardHtml() {
 +'function saveAttendanceChanges(sessionId){var rows=document.querySelectorAll("#attRows .att-row");var changes=[];for(var i=0;i<rows.length;i++){var row=rows[i];var cb=row.querySelector("input[type=checkbox]");var inp=row.querySelector("input.att-input");var origAtt=row.getAttribute("data-orig-att")==="1";var origBul=row.getAttribute("data-orig-bul");if(cb.checked!==origAtt||inp.value!==origBul){changes.push({trainee:row.getAttribute("data-trainee"),attending:cb.checked,bullets:inp.value});}}if(changes.length===0){showToast("\u05D0\u05D9\u05DF \u05E9\u05D9\u05E0\u05D5\u05D9\u05D9\u05DD");return;}var btn=document.querySelector(".btn-save");if(btn){btn.disabled=true;btn.dataset.origText=btn.textContent;btn.textContent="\u05D8\u05D5\u05E2\u05DF...";}var saved=0;var errors=0;var total=changes.length;for(var j=0;j<changes.length;j++){(function(c){google.script.run.withSuccessHandler(function(r){if(r.success){saved++;}else{errors++;}if(saved+errors===total){if(errors>0){showToast("\u05E0\u05E9\u05DE\u05E8\u05D5 "+saved+", \u05E9\u05D2\u05D9\u05D0\u05D5\u05EA: "+errors);}else{showToast("\u05E0\u05E9\u05DE\u05E8\u05D5 "+saved+" \u05E9\u05D9\u05E0\u05D5\u05D9\u05D9\u05DD");}showAttendanceList(sessionId);}}).withFailureHandler(function(){errors++;if(saved+errors===total){showToast("\u05E0\u05E9\u05DE\u05E8\u05D5 "+saved+", \u05E9\u05D2\u05D9\u05D0\u05D5\u05EA: "+errors);showAttendanceList(sessionId);}}).updateSessionResponse(sessionId,c.trainee,c.attending,c.bullets);})(changes[j]);}}'
 
 +'function hideAttendanceList(){var panel=document.getElementById("attPanel");if(panel){panel.remove();}var da=document.getElementById("dashboardArea");var sections=da.querySelectorAll(".section");for(var i=0;i<sections.length;i++){sections[i].style.display="block";}}'
-+'</script></body></html>';
++'</script>' + getZoomScript('900px')
++'</body></html>';
 }
 
 function getPrintOtpGateHtml(sessionId) {
@@ -959,25 +998,19 @@ function getPrintOtpGateHtml(sessionId) {
 function getAdminDashboardHtml() {
   return '<!DOCTYPE html><html lang="he" dir="rtl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">'
 +'<title>לוח ניהול</title>'
-+'<style>'
-+'*{box-sizing:border-box;margin:0;padding:0}'
-+'body{font-family:Segoe UI,Tahoma,Arial,sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh;padding:24px}'
++'<style>' + getBaseCSS()
++'body{padding:24px}'
 +'.container{max-width:900px;margin:0 auto}'
-+'h1{color:#f8fafc;margin-bottom:8px;font-size:28px}'
++'h1{margin-bottom:8px;font-size:28px}'
 +'p.subtitle{color:#94a3b8;margin-bottom:24px}'
-+'.section{background:#1e293b;border:1px solid #334155;border-radius:16px;padding:32px;margin-bottom:24px}'
++'.section{padding:32px}'
 +'.section h2{color:#60a5fa;margin-bottom:16px;font-size:18px}'
-+'.field{margin-bottom:14px}'
-+'.field label{display:block;color:#94a3b8;font-size:13px;margin-bottom:6px}'
-+'.field input,.field select{width:100%;padding:10px 14px;border-radius:10px;border:1px solid #475569;background:#0f172a;color:#e2e8f0;font-size:15px;font-family:inherit}'
-+'.field input:focus,.field select:focus{outline:none;border-color:#3b82f6}'
++'.field input,.field select{padding:10px 14px}'
 +'.field input[type=checkbox]{width:auto}'
-+'.btn{display:inline-block;padding:12px 24px;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;border:none;font-family:inherit;transition:all .2s}'
-+'.btn-primary{background:#3b82f6;color:#fff}.btn-primary:hover{background:#2563eb}'
++'.btn{display:inline-block;padding:12px 24px;font-size:15px}'
 +'.btn-danger{background:#dc2626;color:#fff}.btn-danger:hover{background:#b91c1c}'
 +'.btn-success{background:#16a34a;color:#fff}.btn-success:hover{background:#15803d}'
 +'.btn-small{padding:8px 16px;font-size:13px}'
-+'.btn:disabled{opacity:.5;cursor:not-allowed}'
 +'.active-list{list-style:none;padding:0;margin:0}'
 +'.active-item{display:flex;align-items:center;justify-content:space-between;background:#0f172a;border:1px solid #334155;border-radius:10px;padding:14px 18px;margin-bottom:10px;flex-wrap:wrap;gap:8px}'
 +'.active-item .item-info{display:flex;gap:16px;align-items:center;flex-wrap:wrap}'
@@ -1173,7 +1206,7 @@ function getAdminDashboardHtml() {
 
 +'function doResendAdminOtp(){sendAdminOtp();}'
 
-+'function enterAdminDashboard(){document.getElementById("loginArea").style.display="none";document.getElementById("otpArea").style.display="none";document.getElementById("dashboardArea").style.display="block";document.getElementById("welcomeMsg").textContent="\u05E9\u05DC\u05D5\u05DD, "+currentAdmin.name;loadAdminActiveSessions();loadInstructorsList();loadSuspensionReasons();loadReasonsList();loadSuspendedList();google.script.run.withSuccessHandler(function(result){isOwner=result;if(isOwner){document.getElementById("ownerSections").style.display="block";loadOwnerInstrSelect();}}).isOwnerByTz(currentAdmin.tz);}'
++'function enterAdminDashboard(){if(window._adminZoomed){document.body.style.zoom="";document.body.style.width="";document.body.style.overflowX="";delete window._adminZoomed;}document.getElementById("loginArea").style.display="none";document.getElementById("otpArea").style.display="none";document.getElementById("dashboardArea").style.display="block";document.getElementById("welcomeMsg").textContent="\u05E9\u05DC\u05D5\u05DD, "+currentAdmin.name;loadAdminActiveSessions();loadInstructorsList();loadSuspensionReasons();loadReasonsList();loadSuspendedList();google.script.run.withSuccessHandler(function(result){isOwner=result;if(isOwner){document.getElementById("ownerSections").style.display="block";loadOwnerInstrSelect();}}).isOwnerByTz(currentAdmin.tz);}'
 
 +'function loadAdminActiveSessions(){google.script.run.withSuccessHandler(function(sessions){var c=document.getElementById("activeSessionsList");if(!sessions||sessions.length===0){c.innerHTML="<div class=\\"active-empty\\">\u05D0\u05D9\u05DF \u05D0\u05D9\u05DE\u05D5\u05E0\u05D9\u05DD \u05E4\u05E2\u05D9\u05DC\u05D9\u05DD</div>";return;}var h="";for(var i=0;i<sessions.length;i++){var s=sessions[i];h+="<div class=\\"active-item\\"><div class=\\"item-info\\"><span class=\\"item-date\\">"+s.date+"</span><span class=\\"item-instructor\\">"+s.instructorName+"</span>"+(s.notes?"<span class=\\"item-notes\\">"+s.notes+"</span>":"")+"</div><div style=\\"display:flex;gap:6px;flex-wrap:wrap\\"><button class=\\"btn btn-att btn-small\\" data-sid=\\""+s.sessionId+"\\" onclick=\\"showAttendanceList(this.dataset.sid)\\">\u270F\uFE0F \u05E8\u05E9\u05D9\u05DE\u05EA \u05DE\u05D2\u05D9\u05E2\u05D9\u05DD</button><button class=\\"btn btn-primary btn-small\\" data-sid=\\""+s.sessionId+"\\" onclick=\\"adminPrint(this.dataset.sid)\\">\uD83D\uDDA8\uFE0F</button><button class=\\"btn btn-danger btn-small\\" data-sid=\\""+s.sessionId+"\\" onclick=\\"adminClose(this.dataset.sid,this)\\">\u05E1\u05D2\u05D5\u05E8</button></div></div>";}c.innerHTML=h;}).getActiveSessions()}'
 
@@ -1241,5 +1274,6 @@ function getAdminDashboardHtml() {
 
 +'function ownerRenderSessions(){var tb=document.getElementById("ownerSessionsBody");tb.innerHTML="";var count=0;for(var i=0;i<ownerAllSessions.length;i++){var s=ownerAllSessions[i];if(ownerCurrentFilter!=="all"&&s.status!==ownerCurrentFilter)continue;count++;var tr=document.createElement("tr");var td1=document.createElement("td");td1.textContent=s.date;var td2=document.createElement("td");td2.textContent=s.status;td2.className=s.status==="\u05E4\u05E2\u05D9\u05DC"?"status-active-txt":"status-closed-txt";var td3=document.createElement("td");td3.textContent=s.notes||"-";var td4=document.createElement("td");var pbtn=document.createElement("button");pbtn.className="btn btn-primary btn-small";pbtn.setAttribute("data-sid",s.sessionId);pbtn.textContent="\uD83D\uDDA8\uFE0F";pbtn.onclick=function(){adminPrint(this.getAttribute("data-sid"));};td4.appendChild(pbtn);if(s.status==="\u05E4\u05E2\u05D9\u05DC"){var cbtn=document.createElement("button");cbtn.className="btn btn-danger btn-small";cbtn.style.marginRight="6px";cbtn.setAttribute("data-sid",s.sessionId);cbtn.textContent="\u05E1\u05D2\u05D5\u05E8";cbtn.onclick=function(){var sid=this.getAttribute("data-sid");var self=this;if(!confirm("\u05D4\u05D0\u05DD \u05DC\u05E1\u05D2\u05D5\u05E8 \u05D0\u05EA \u05D4\u05D0\u05D9\u05DE\u05D5\u05DF?")){return;}withLoading(self,function(done){google.script.run.withSuccessHandler(function(r){if(r.success){for(var j=0;j<ownerAllSessions.length;j++){if(ownerAllSessions[j].sessionId===sid){ownerAllSessions[j].status="\u05E1\u05D2\u05D5\u05E8";break;}}ownerRenderSessions();loadAdminActiveSessions();}else{done();alert(r.message);}}).withFailureHandler(function(e){done();alert("\u05E9\u05D2\u05D9\u05D0\u05D4: "+e.message);}).closeSession(sid);});};td4.appendChild(cbtn);}tr.appendChild(td1);tr.appendChild(td2);tr.appendChild(td3);tr.appendChild(td4);tb.appendChild(tr);}if(count===0){var tr2=document.createElement("tr");var td=document.createElement("td");td.colSpan=4;td.style.textAlign="center";td.style.color="#94a3b8";td.textContent="\u05D0\u05D9\u05DF \u05D0\u05D9\u05DE\u05D5\u05E0\u05D9\u05DD";tr2.appendChild(td);tb.appendChild(tr2);}}'
 
-+'</script></body></html>';
++'</script>' + getZoomScript(null, true)
++'</body></html>';
 }

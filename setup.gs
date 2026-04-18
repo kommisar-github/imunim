@@ -1,4 +1,4 @@
-// setup.gs — אימוני ירי v5.0.12
+// setup.gs — אימוני ירי v5.2.0
 
 // Header colors matching existing spreadsheet formatting
 var HEADER_COLOR_PURPLE = '#5b3f86';  // Source sheet, Response sheet
@@ -71,7 +71,7 @@ function setupSourceSheet() {
     'מס׳ רישיון - כלי 2', 'בתוקף עד - כלי 2', 'סוג כלי - כלי 2', 'מספר כלי - כלי 2', 'קוטר - כלי 2',
     'מס׳ רישיון - כלי 3', 'בתוקף עד - כלי 3', 'סוג כלי - כלי 3', 'מספר כלי - כלי 3', 'קוטר - כלי 3',
     'מס׳ רישיון - כלי 4', 'בתוקף עד - כלי 4', 'סוג כלי - כלי 4', 'מספר כלי - כלי 4', 'קוטר - כלי 4',
-    'סטטוס', 'סיבת השעיה', 'תאריך עדכון סטטוס'
+    'סטטוס', 'סיבת השעיה', 'תאריך עדכון סטטוס', 'דא'
   ];
   sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
   var headerRange = sheet.getRange(1, 1, 1, headers.length);

@@ -1,4 +1,4 @@
-// data.gs — אימוני ירי v5.0.12
+// data.gs — אימוני ירי v5.2.0
 
 function generateSessionId(dateStr, instructorTz) {
   // dateStr: "20/03/2026", returns "20260320-318253233"
@@ -937,9 +937,17 @@ function lookupByTZ(tz) {
         return {found: false, message: 'ת.ז. זו משויכת לחשבון אחר'};
       }
     } else {
-      // No Google session — need OTP verification
-      var name = nameCol > -1 ? String(data[rowIdx][nameCol] || '').trim() : '';
-      return {found: true, needsOTP: true, maskedEmail: maskEmail(storedEmail), name: name};
+      // No Google session — check simplified auth before requiring OTP
+      var daCol = findCol('דא');
+      var daFlag = daCol > -1 ? String(data[rowIdx][daCol] || '').trim() : '';
+      var isGmail = storedEmail.indexOf('@gmail.com') > -1;
+      if (daFlag === 'כן' && !isGmail) {
+        // Simplified auth — skip OTP for flagged non-Gmail trainees
+      } else {
+        // Standard flow — need OTP verification
+        var name = nameCol > -1 ? String(data[rowIdx][nameCol] || '').trim() : '';
+        return {found: true, needsOTP: true, maskedEmail: maskEmail(storedEmail), name: name};
+      }
     }
   }
 
