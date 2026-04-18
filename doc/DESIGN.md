@@ -1,14 +1,19 @@
-# CONTEXT.md — Shooting Training Attendance System (v5.2.0)
+# DESIGN.md — אימוני ירי System Design (v5.2.0)
+
+**Last Updated: 2026-04-18**
 
 ## 1. Project Overview
 
 **אימון ירי** (Shooting Training) is a Google Apps Script web application for managing attendance at shooting training sessions with multi-instructor support.
 
 - **Purpose**: Track trainee attendance, weapons/tools, and session management
-- **Architecture**: Google Apps Script web app deployed as public URL with Hebrew RTL interface
-- **Version**: 5.2.0 (4-tier role system: owner/admin/instructor/trainee, suspension management, simplified auth, unified CSS, GAS iframe mobile zoom fix)
+- **Architecture**: Google Apps Script web app (7 `.gs` files), deployed as public URL with Hebrew RTL interface
+- **Version**: 5.2.0
+- **Key Features**: 4-tier role system (owner/admin/instructor/trainee), session-based polls, deputy instructors, OTP hybrid auth, suspension management, simplified auth, unified CSS with GAS iframe mobile zoom fix
 - **Interface**: Dark theme, responsive design, Hebrew right-to-left layout
 - **Target Users**: Owners (system config), admins (overview & management), instructors (session management), trainees (registration & attendance poll)
+
+This is the **living design document** — it describes the system as currently implemented. For historical implementation plans, see `PLAN_v2.md` through `PLAN_v6.md`. For version history, see `ROADMAP.md`.
 
 ## 2. Rules (CRITICAL)
 
@@ -42,11 +47,14 @@ Imun/Multi/
 ├── logo.gs             — LOGO_BASE64 constant (~110KB)
 ├── backup.gs           — Scheduled daily backup to Google Drive (~144 lines)
 ├── doc/                — Project documentation
-│   ├── CONTEXT.md          — This file
-│   ├── MULTI_DESIGN.md     — Design document
-│   ├── MULTI_SETUP.md      — Deployment guide
-│   ├── PLAN_v5.md          — v5.0 implementation plan
-│   ├── ROADMAP_v5.md       — Roadmap and status
+│   ├── DESIGN.md           — This file (living system design)
+│   ├── PLAN_v2.md          — v2.x implementation plan (single-instructor, reconstructed)
+│   ├── PLAN_v3.md          — v3.x implementation plan (multi-instructor refactor)
+│   ├── PLAN_v4.md          — v4.x implementation plan (security + deputies, reconstructed)
+│   ├── PLAN_v5.md          — v5.0 implementation plan (4-tier role system)
+│   ├── PLAN_v6.md          — v6.0 implementation plan (session persistence + API security)
+│   ├── ROADMAP.md          — Unified roadmap (all versions)
+│   ├── SETUP.md            — Deployment guide
 │   ├── DOC_GUIDELINES.md   — Manual formatting specs
 │   ├── AUDIT_v5011.md      — v5.0.11 audit report
 │   └── GUI_GUIDELINES.md   — GAS iframe rendering, mobile detection, CSS zoom, shared CSS architecture
@@ -146,7 +154,7 @@ All navigation controlled by `routing.gs` `doGet(e)` function:
 | Route | Handler | Auth | Description |
 |-------|---------|------|-------------|
 | (none) | `getLandingHtml()` | Public | Landing page with 3 navigation cards |
-| ?action=register | `getLookupHtml(prefillTz)` | Public | Trainee registration/update form with ת.ז. lookup |
+| ?action=register | `getLookupHtml(prefillTz, adminMode)` | Public | Trainee registration/update form. `&tz=X` prefills TZ, `&admin=1` enables admin edit mode (bypasses OTP, v5.0.3) |
 | ?action=poll | `getPollHtml(sessionId)` | Public | Session picker + attendance form with tool selector |
 | ?action=instructor | `getInstructorDashboardHtml()` | Client-side OTP/Google | Instructor dashboard (auth handled by OTP flow) |
 | ?action=admin | `getAdminDashboardHtml()` | Client-side TZ + OTP/Google | Admin dashboard (4-tier: admin sees management, owner sees DB links) |
@@ -168,7 +176,9 @@ Complete list of every function organized by file:
 ### data.gs (~1665 lines)
 
 #### Authentication & Security
-- **`isAdminByTz(tz)`** — NEW (v5.0.0). Checks instructor sheet column F (אדמין) for `כן`. Returns true if instructor has admin access.
+- **`isOwnerEmail(email)`** — Checks if email is in `OWNER_EMAILS` array. Used by routing.gs for route-level gating and debug page access.
+- **`isAdminByEmail(email)`** — Looks up instructor by email in instructor sheet, checks column F (אדמין). Returns true if instructor has admin access.
+- **`isAdminByTz(tz)`** — (v5.0.0). Checks instructor sheet column F (אדמין) for `כן`. Returns true if instructor has admin access.
 - **`isOwnerByTz(tz)`** — NEW (v5.0.9). Looks up instructor email by TZ, checks against `OWNER_EMAILS` array. Returns true if instructor is system owner.
 - **`isSimplifiedAuth(tz)`** — NEW (v5.1.0). Reads trainee column Y (דא). Returns true if value is `כן` AND trainee email is NOT Gmail. Used to bypass OTP for specific non-Gmail trainees.
 - **`isAuthorizedEmail(email)`** — Returns true if email matches any OWNER_EMAILS entry or any instructor's email in instructor sheet.
@@ -247,7 +257,7 @@ Complete list of every function organized by file:
 - **`getLandingHtml()`** — Landing page with 3 navigation cards: "הרשמה" (Register), "סקר נוכחות" (Poll), "הוראה" (Instructor). Uses `getBaseCSS()` + `getZoomScript()`. Top-aligned (not vertically centered).
 
 #### Trainee Pages
-- **`getLookupHtml(prefillTz)`** — Registration page. TZ entry in centered `.section` card (matches instructor/admin login style). Includes ת.ז. lookup, edit mode, all trainee fields, OTP flow. **Checks trainee status (v5.0.0)** — blocks suspended trainees. **Supports simplified auth (v5.1.0)** — skips OTP if `דא=כן` for non-Gmail. **Supports admin edit mode** — `?tz=X` from admin dashboard bypasses OTP (v5.0.3). Uses `getBaseCSS()` + `getZoomScript('520px')`.
+- **`getLookupHtml(prefillTz, adminMode)`** — Registration page. TZ entry in centered `.section` card (matches instructor/admin login style). Includes ת.ז. lookup, edit mode, all trainee fields, OTP flow. **Checks trainee status (v5.0.0)** — blocks suspended trainees. **Supports simplified auth (v5.1.0)** — skips OTP if `דא=כן` for non-Gmail. **Supports admin edit mode** — `?tz=X` from admin dashboard bypasses OTP (v5.0.3). Uses `getBaseCSS()` + `getZoomScript('520px')`.
 - **`getPollHtml(sessionId)`** — Attendance poll page. Session picker, attendance form, tool selector, OTP flow. **Checks trainee status** — blocks suspended trainees. **Supports simplified auth**. Uses `getBaseCSS()` + `getZoomScript('520px')`.
 
 #### Instructor & Admin Pages
@@ -459,7 +469,56 @@ CASE 4: No Google email + no stored email
   ↓ verifyOTP(tz, code) → on success stores email + returns data
 ```
 
-## 9. UI Design Tokens
+## 9. Architecture
+
+### 9.1 Multi-File Structure
+
+The implementation uses a **multi-file `.gs` architecture**, split into 7 logical modules. All files share a global scope in GAS — functions defined in any file are accessible from all others.
+
+| File | Size | Purpose |
+|------|------|---------|
+| `config.gs` | ~34 lines | Constants: `SCRIPT_VERSION`, sheet IDs (5 sheets), `WEBAPP_URL`, `OWNER_EMAILS`, suspension reasons config, OTP settings. No functions. |
+| `routing.gs` | ~121 lines | `doGet(e)` router dispatcher. Parses URL parameters, dispatches to page handlers. |
+| `data.gs` | ~1665 lines | All server-side data functions: session CRUD, trainee lookup/validation, poll submit/query, OTP auth (instructor + trainee + admin), auto-close, email notifications, attendance override, instructor CRUD, trainee status management, suspension reasons CRUD, `isOwnerByTz()`. |
+| `pages.gs` | ~1300 lines | All HTML page generators: shared CSS (`getBaseCSS`), zoom (`getZoomScript`), 7 page generators (landing, register, poll, instructor, admin, print, print OTP gate). |
+| `setup.gs` | ~305 lines | Sheet initialization for all 5 spreadsheets (`setupAll()`), data validation rules, trigger installation (backup + auto-close). |
+| `backup.gs` | ~144 lines | Scheduled daily backup to project folder on Google Drive (~01:00 Israel time). Copies all 4 data spreadsheets. |
+| `logo.gs` | ~110KB | `LOGO_BASE64` constant — Base64-encoded logo image for HTML pages. |
+
+### 9.2 Key Architectural Patterns
+
+- **GAS single-line JS**: All string concatenation in `.gs` files produces ONE line of JS in the browser. ASI never applies. Every statement MUST end with `;`.
+- **`data-sid` pattern**: Dynamic onclick handlers use `data-sid` attributes to avoid quote-escaping nightmares (see §11.5).
+- **OTP hybrid auth**: Both instructors and trainees fall back from Google session → OTP email verification → email collection, depending on browser state.
+- **Print token bridge**: 60-second UUID tokens cached in `CacheService` bridge OTP verification to print page access across page navigation.
+- **All pages inline**: CSS and JS are embedded in HTML strings (no separate files). Pages are self-contained.
+- **Shared CSS**: `getBaseCSS()` is the single source of truth for all page styling. `getZoomScript()` handles GAS iframe mobile zoom. **MUST READ `GUI_GUIDELINES.md` before modifying any CSS or zoom logic.**
+- **Session-based data isolation**: Each training session has a unique ID (`YYYYMMDD-{tz}`). Poll responses are tagged with session ID, enabling concurrent sessions without interference.
+
+### 9.3 Role Hierarchy
+
+| Role | Who | Access | Auth Method |
+|------|-----|--------|-------------|
+| **Owner** | System developer | Everything: all dashboards, raw DB links, debug | `OWNER_EMAILS` array (hardcoded in config.gs) |
+| **Admin** | Instructor with admin flag | Admin dashboard (no DB links), manage instructors, manage trainees, manage sessions | ת.ז. + Google/OTP, `אדמין` column in instructor sheet |
+| **Instructor** | Registered instructor | Instructor dashboard: own sessions, attendance override, print | ת.ז. + Google/OTP |
+| **Trainee** | Registered trainee | Registration, poll, edit own data | ת.ז. + Google/OTP or simplified auth |
+
+### 9.4 Access Control Matrix
+
+| Route | Auth Method | Owner | Admin | Instructor | Public |
+|-------|-----------|-------|-------|------------|--------|
+| Landing, Register, Poll | OTP or Google | ✓ | ✓ | ✓ | ✓ |
+| Instructor dashboard | ת.ז. + Google or OTP | ✓ | ✓ | ✓ | ✗ |
+| Admin dashboard | ת.ז. + OTP, admin flag check | ✓ (+ owner panels) | ✓ | ✗ | ✗ |
+| Print | Google session or OTP gate | ✓ | ✓ (any session) | ✓ (session-scoped) | ✗ |
+| PrintVerified | One-time token (60s) | ✓ | ✓ | ✓ (session-scoped) | ✗ |
+| Status | Called from authenticated dashboard | ✓ | ✓ | ✓ | ✗ |
+| Debug | Owner email check (v5.0.12) | ✓ | ✗ | ✗ | ✗ |
+
+---
+
+## 10. UI Design Tokens
 
 Consistent styling across all pages:
 
@@ -503,9 +562,9 @@ Consistent styling across all pages:
 - **Cards**: Subtle border, hover = slight shadow
 - **Links**: Blue accent, underline on hover
 
-## 10. Critical Pitfalls & Patterns (MUST READ)
+## 11. Critical Pitfalls & Patterns (MUST READ)
 
-### 10.1 GAS Single-Line JavaScript (CRITICAL)
+### 11.1 GAS Single-Line JavaScript (CRITICAL)
 
 **ALL GAS string concatenation produces ONE line with NO newlines.**
 
@@ -541,7 +600,7 @@ If a statement ends without `;`, it can cause the entire `<script>` block to cra
 function myFunc() {
 ```
 
-### 10.2 GAS String Escaping Rules
+### 11.2 GAS String Escaping Rules
 
 In GAS single-quoted strings:
 - `\'` = produces literal `'` in browser output
@@ -558,7 +617,7 @@ var msg = 'He said \\'hello\\' and then \\nwent away.';
 // went away.
 ```
 
-### 10.3 GAS HtmlService Iframe Limitations
+### 11.3 GAS HtmlService Iframe Limitations
 
 `window.location.search` **does not work** in GAS sandboxed iframe. URL parameters cannot be read client-side.
 
@@ -573,7 +632,7 @@ function doGet(e) {
 
 Client-side can then use `SESSION_ID` variable.
 
-### 10.4 GAS Load Event Timing
+### 11.4 GAS Load Event Timing
 
 `window.addEventListener("load", ...)` **may not fire** because the iframe's load event has already occurred by the time the script runs.
 
@@ -588,7 +647,7 @@ google.script.run.withSuccessHandler(function(data) {
 }).myServerFunction();
 ```
 
-### 10.5 data-sid Pattern (Avoid Quote Escaping Nightmares)
+### 11.5 data-sid Pattern (Avoid Quote Escaping Nightmares)
 
 When dynamically building onclick handlers with session IDs, multi-layer quote escaping becomes impossible.
 
@@ -607,7 +666,7 @@ btn.addEventListener("click", function() {
 });
 ```
 
-### 10.6 DOM createElement Approach for Complex HTML
+### 11.6 DOM createElement Approach for Complex HTML
 
 For dynamic tables or complex nested HTML (like admin sessions table), use `document.createElement()` instead of innerHTML:
 
@@ -627,7 +686,7 @@ row.appendChild(dateCell);
 table.appendChild(row);
 ```
 
-### 10.7 navigator.clipboard.writeText() with Fallback
+### 11.7 navigator.clipboard.writeText() with Fallback
 
 Modern clipboard API may not work in older browsers or all GAS contexts.
 
@@ -644,7 +703,7 @@ function copyToClipboard(text) {
 }
 ```
 
-### 10.8 google.script.run Pattern
+### 11.8 google.script.run Pattern
 
 All server→client and client→server calls follow this pattern:
 
@@ -666,7 +725,7 @@ google.script.run
 - Return values must also be serializable
 - Handlers are **asynchronous** — code continues immediately after the call
 
-### 10.9 Sheets API: Number Format with Table Feature
+### 11.9 Sheets API: Number Format with Table Feature
 
 If Google Sheets "Table" feature is enabled on a sheet, `setNumberFormat()` calls **will fail silently** or throw errors.
 
@@ -682,7 +741,7 @@ try {
 
 Data is stored as strings via `String()` conversion instead.
 
-### 10.10 Deployment: clasp push vs. Deploy
+### 11.10 Deployment: clasp push vs. Deploy
 
 **`clasp push` alone is NOT sufficient.**
 
@@ -702,7 +761,7 @@ Data is stored as strings via `String()` conversion instead.
 8. Test via public URL
 ```
 
-### 10.11 Security Model
+### 11.11 Security Model
 
 #### Architecture Overview
 The security model uses route-level gating combined with trainee email verification:
@@ -759,7 +818,7 @@ if (REQUIRE_LOGIN && isProtectedRoute) {
 | Status | Yes | Called from authenticated dashboard | JSON response counts |
 | Debug | No | `OWNER_EMAILS` email check | Diagnostic info page (v5.0.12: gated) |
 
-## 11. Constants Reference
+## 12. Constants Reference
 
 All constants defined in `config.gs`:
 
@@ -777,11 +836,21 @@ var INSTRUCTOR_SHEET_ID = '1jTnZacJEKGiksJJfaIPB3sp29uHjsfrGv1Vic6v4Gls';
 var SESSIONS_SHEET_ID = '1hrsIxwkckoc_Od4gSinM07XiRVhiSo9pYW2--bbBumI';
 var SUSPENSION_REASONS_SHEET_ID = '1E3htH5udGPwgnqvOC6cJbtEjG0cva1EdDG_v1SByENQ';
 
+// Computed URLs (from IDs above)
+var SESSIONS_SHEET_URL = 'https://docs.google.com/spreadsheets/d/' + SESSIONS_SHEET_ID + '/edit';
+var SOURCE_SHEET_URL = 'https://docs.google.com/spreadsheets/d/' + SOURCE_SHEET_ID + '/edit';
+var RESPONSE_SHEET_URL = 'https://docs.google.com/spreadsheets/d/' + RESPONSE_SHEET_ID + '/edit';
+var INSTRUCTOR_SHEET_URL = 'https://docs.google.com/spreadsheets/d/' + INSTRUCTOR_SHEET_ID + '/edit';
+var SUSPENSION_REASONS_SHEET_URL = 'https://docs.google.com/spreadsheets/d/' + SUSPENSION_REASONS_SHEET_ID + '/edit';
+var SUSPENSION_REASONS_TAB = 'סיבות השעיה';
+
 // Instructor IDs (for direct login bypass or default instructor)
 var INSTRUCTOR_TZ = '319253233';
 
 // Deployed web app URL (used for share links)
 var WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbygdC5WloMaLUJ8xN3zmRihr8_bUAVus9arG071q5VUIbs_vrAo_kTXwCPF0tGB9ytI/exec';
+var REGISTER_URL = WEBAPP_URL + '?action=register';
+var POLL_PAGE_URL = WEBAPP_URL + '?action=poll';
 
 // Owner emails — system owners with full access (renamed from ADMIN_EMAILS in v5.0.0)
 var OWNER_EMAILS = ['kommisar@gmail.com'];
@@ -800,7 +869,7 @@ var OTP_MAX_ATTEMPTS = 3;                    // Max verification attempts
 var OTP_BLOCK_SECONDS = 900;                 // Block duration after max attempts: 15 minutes
 ```
 
-## 12. Development Workflow
+## 13. Development Workflow
 
 ### Step 1: Edit Locally
 Edit .gs files in `/sessions/amazing-vibrant-thompson/mnt/ClaudeCowork/Imun/Multi/`
@@ -827,13 +896,17 @@ clasp push
 - Check console for errors (F12 → Console)
 - Verify sheets are updated correctly
 
-## 13. Related Files & Documentation
+## 14. Related Files & Documentation
 
 ### Project Documentation (in `doc/`)
-- **doc/MULTI_DESIGN.md** — Detailed design document with mockups, user flows, and component specifications
-- **doc/MULTI_SETUP.md** — Complete deployment and setup guide, including spreadsheet creation and GAS project configuration
-- **doc/PLAN_v5.md** — v5.0 implementation plan with detailed design decisions
-- **doc/ROADMAP_v5.md** — Roadmap: what's done, what remains, future considerations
+- **doc/DESIGN.md** — This file. Living system design: architecture, schemas, functions, data flows, UI tokens, security model, development workflow
+- **doc/PLAN_v2.md** — v2.x implementation plan: single-instructor system (reconstructed from code.gs)
+- **doc/PLAN_v3.md** — v3.x implementation plan: multi-instructor refactor, session architecture
+- **doc/PLAN_v4.md** — v4.x implementation plan: security, OTP auth, deputies, attendance override (reconstructed)
+- **doc/PLAN_v5.md** — v5.0 implementation plan: 4-tier role system, suspension management
+- **doc/PLAN_v6.md** — v6.0 implementation plan: session persistence, API security, role-by-role rollout
+- **doc/ROADMAP.md** — Unified roadmap covering all versions (v2–v6+), patch history, and future considerations
+- **doc/SETUP.md** — Complete deployment and setup guide, including spreadsheet creation and GAS project configuration
 - **doc/DOC_GUIDELINES.md** — Manual formatting specs and creation workflow
 - **doc/AUDIT_v5011.md** — v5.0.11 audit report
 - **doc/GUI_GUIDELINES.md** — GAS iframe rendering, mobile/desktop detection, CSS zoom, shared CSS architecture, rules for future updates
@@ -852,11 +925,11 @@ clasp push
 
 ---
 
-## 14. Instructor Manual — Creation & Editing Guide
+## 15. Instructor Manual — Creation & Editing Guide
 
 The instructor manual (`manuals/מדריך_למדריך_vXXX.docx`) is a Hebrew RTL Word document and serves as the reference template for all manuals. It is edited by unpacking the `.docx` into XML, editing the XML directly, and repacking. **Do NOT use docx-js to recreate from scratch** — always clone the instructor manual and edit to preserve exact formatting, fonts, and styles. See `doc/DOC_GUIDELINES.md` for the complete formatting spec and workflow.
 
-### 14.1 Workflow
+### 15.1 Workflow
 
 ```bash
 # Step 1: Unpack (from the docx skill directory)
@@ -878,7 +951,7 @@ pandoc "output_manual.docx" -o verify.md
 
 **CRITICAL:** The `--original` flag on `pack.py` preserves styles.xml, numbering.xml, fonts, theme, and relationships from the source file. Without it, the output will have broken formatting.
 
-### 14.2 Document Structure (v4.2.9)
+### 15.2 Document Structure (v4.2.9)
 
 The manual has this section layout (12 sections as of v4.2.9):
 
@@ -894,7 +967,7 @@ Footer:         Version line at bottom
 2. **Section headers** — renumber all subsequent `N. section_title` in section heading elements
 3. **Footer version** — update version string
 
-### 14.3 XML Formatting Patterns
+### 15.3 XML Formatting Patterns
 
 All paragraphs use `<w:jc w:val="left"/>` (renders as right-aligned in RTL). The boilerplate attributes on `<w:p>` are: `w14:paraId="XXXXXXXX" w14:textId="77777777" w:rsidR="00384C10" w:rsidRDefault="00000000" w:rsidP="000565DA"`. When adding new paragraphs, use unique `paraId` values (8 hex chars).
 
@@ -1097,7 +1170,7 @@ Note: The step number is padded with spaces: `"  1  "`, `"  2  "`, etc. The spac
 </w:p>
 ```
 
-### 14.4 Typical Section Layout
+### 15.4 Typical Section Layout
 
 A complete section follows this pattern:
 ```
@@ -1111,7 +1184,7 @@ A complete section follows this pattern:
 [tip/warning box(es)]  ← optional 💡 or ⚠️ boxes
 ```
 
-### 14.5 Version Update Checklist
+### 15.5 Version Update Checklist
 
 When updating the manual for a new version:
 1. Update `גרסה X.Y.Z • חודש שנה` in title page
@@ -1119,7 +1192,7 @@ When updating the manual for a new version:
 3. If adding sections: update ALL TOC entries + ALL section header numbers
 4. Save output to `manuals/מדריך_למדריך_vXYZ.docx` (e.g., `v5012` for 5.0.12)
 
-### 14.6 Smart Quotes
+### 15.6 Smart Quotes
 
 Use XML entities for Hebrew-compatible quotes and apostrophes:
 - `&#x201C;` → " (left double quote)
@@ -1127,7 +1200,7 @@ Use XML entities for Hebrew-compatible quotes and apostrophes:
 - `&#x2019;` → ' (apostrophe)
 - `&#x2018;` → ' (left single quote)
 
-### 14.7 Current Manual Sections (v4.2.9)
+### 15.7 Current Manual Sections (v4.2.9)
 
 | # | Title | Content |
 |---|-------|---------|
