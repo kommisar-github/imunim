@@ -1,4 +1,4 @@
-// setup.gs — אימוני ירי v5.2.0
+// setup.gs — אימוני ירי v6.1.5
 
 // Header colors matching existing spreadsheet formatting
 var HEADER_COLOR_PURPLE = '#5b3f86';  // Source sheet, Response sheet

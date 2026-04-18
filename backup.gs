@@ -1,4 +1,4 @@
-// backup.gs — אימוני ירי v5.2.0
+// backup.gs — אימוני ירי v6.1.5
 
 /**
  * Scheduled backup — exports all 4 sheets into a single .xlsx file

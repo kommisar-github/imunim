@@ -1,4 +1,4 @@
-// routing.gs — אימוני ירי v5.2.0
+// routing.gs — אימוני ירי v6.1.5
 
 var DENY_HTML = '<html dir="rtl"><body style="background:#0f172a;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;font-family:Segoe UI,Tahoma,Arial,sans-serif"><div style="text-align:center;padding:40px;color:#f87171;font-size:18px">אין הרשאה — גישה למורשים בלבד</div></body></html>';
 
@@ -24,7 +24,8 @@ function doGet(e) {
   if (action === 'register') {
     var prefillTz = e.parameter.tz || '';
     var adminMode = e.parameter.admin === '1';
-    return HtmlService.createHtmlOutput(getLookupHtml(prefillTz, adminMode))
+    var editToken = e.parameter.editToken || '';
+    return HtmlService.createHtmlOutput(getLookupHtml(prefillTz, adminMode, editToken))
       .setTitle('רישום מתאמנים')
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
   }

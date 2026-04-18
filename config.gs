@@ -1,6 +1,6 @@
-// config.gs — אימוני ירי v5.2.0
+// config.gs — אימוני ירי v6.1.5
 
-var SCRIPT_VERSION = '5.2.0';
+var SCRIPT_VERSION = '6.1.5';
 var MAX_TOOLS = 4;
 var SOURCE_SHEET_ID = '182Kp5-vTABvRZ8VA3W0rqhAs5933yqe1YNdN61w-ACo';
 var RESPONSE_SHEET_ID = '1wl4lUd3_XKLGDY58jilUae43xIH8BJtnGOgNmuF-SAQ';
@@ -29,5 +29,9 @@ var OTP_FROM_NAME = 'מערכת אימוני ירי';
 var OTP_TTL_SECONDS = 300;
 var OTP_MAX_ATTEMPTS = 3;
 var OTP_BLOCK_SECONDS = 900;
+
+// Session management (v6.0.0)
+var SESSION_TTL_SECONDS = 7200;  // 2 hours
+var SESSION_KEY_PREFIX = 'sess-'; // Cache key prefix
 
 // LOGO_BASE64 is defined in logo.gs (separate file to keep code readable)

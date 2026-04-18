@@ -1,4 +1,76 @@
-// data.gs — אימוני ירי v5.2.0
+// data.gs — אימוני ירי v6.1.5
+
+// =====================================================
+// v6.0.0 — Session management
+// =====================================================
+
+function _createUserSession(tz, role, name) {
+  tz = normalizeId(tz);
+  var token = Utilities.getUuid();
+  var cache = CacheService.getScriptCache();
+  var isOwner_ = isOwnerByTz(tz);
+  var sessionData = JSON.stringify({
+    tz: tz,
+    role: role,
+    isAdmin: role === 'admin',
+    isOwner: isOwner_,
+    name: name || ''
+  });
+  cache.put(SESSION_KEY_PREFIX + token, sessionData, SESSION_TTL_SECONDS);
+  return token;
+}
+
+function validateUserSession(token) {
+  if (!token) return {valid: false};
+  try {
+    var cache = CacheService.getScriptCache();
+    var raw = cache.get(SESSION_KEY_PREFIX + token);
+    if (!raw) return {valid: false};
+    var data = JSON.parse(raw);
+    return {
+      valid: true,
+      tz: data.tz,
+      role: data.role,
+      isAdmin: data.isAdmin || false,
+      isOwner: data.isOwner || false,
+      name: data.name || ''
+    };
+  } catch(e) {
+    Logger.log('validateUserSession error: ' + e.message);
+    return {valid: false};
+  }
+}
+
+function destroyUserSession(token) {
+  if (!token) return;
+  try {
+    CacheService.getScriptCache().remove(SESSION_KEY_PREFIX + token);
+  } catch(e) {
+    Logger.log('destroyUserSession error: ' + e.message);
+  }
+}
+
+function requireAuth(token, allowedRoles) {
+  if (!token) throw new Error('נדרשת הזדהות');
+  var session = validateUserSession(token);
+  if (!session.valid) throw new Error('הזדהות פגה. יש להתחבר מחדש');
+  if (allowedRoles && allowedRoles.indexOf(session.role) === -1) {
+    throw new Error('אין הרשאה לפעולה זו');
+  }
+  return session;
+}
+
+// v6.1.1 — Admin edit token for cross-tab register access
+function issueAdminEditToken(token) {
+  var session = requireAuth(token, ['admin']);
+  var editToken = Utilities.getUuid();
+  CacheService.getScriptCache().put('edit-token-' + editToken, session.tz, 120); // 2 min
+  return editToken;
+}
+
+// =====================================================
+// Session ID and session management
+// =====================================================
 
 function generateSessionId(dateStr, instructorTz) {
   // dateStr: "20/03/2026", returns "20260320-318253233"
@@ -335,7 +407,12 @@ function getSessionResponseCount(sessionId) {
 // =====================================================
 // Trainee data functions — unchanged from original
 // =====================================================
-function getTraineeData() {
+function getTraineeData(token) {
+  requireAuth(token, ['admin']);
+  return _getTraineeData();
+}
+
+function _getTraineeData() {
   var ss = SpreadsheetApp.openById(SOURCE_SHEET_ID);
   var sheet = ss.getSheets()[0];
   var data = sheet.getDataRange().getValues();
@@ -417,7 +494,18 @@ function getTraineeData() {
   return trainees;
 }
 
-function getInstructorData(tz) {
+function getInstructorData(tokenOrTz, maybeTz) {
+  // Soft gate (v6.1.1): if two params, first is token; if one param, it's TZ (backward compatible)
+  var tz;
+  if (maybeTz !== undefined && maybeTz !== null && maybeTz !== '') {
+    // Two params: token + tz — validate if token provided
+    if (tokenOrTz) {
+      try { requireAuth(tokenOrTz, ['instructor', 'admin']); } catch(e) { /* soft gate: allow without during transition */ }
+    }
+    tz = maybeTz;
+  } else {
+    tz = tokenOrTz;
+  }
   var tzKey = normalizeId(tz || INSTRUCTOR_TZ);
   var fallback = {name: '', tz: tzKey, license: '', phone: '', email: '', admin: false};
   try {
@@ -445,7 +533,9 @@ function getInstructorData(tz) {
   }
 }
 
-function getAllInstructors() {
+function getAllInstructors(token) {
+  // Soft gate (v6.1.1): enforce if token provided, allow without during transition
+  if (token) requireAuth(token, ['instructor', 'admin']);
   try {
     var ss = SpreadsheetApp.openById(INSTRUCTOR_SHEET_ID);
     var sheet = ss.getSheets()[0];
@@ -848,12 +938,26 @@ function verifyOTP(tz, code) {
   }
 
   // Return full trainee data (same as authenticated lookupByTZ)
-  var result = getVerifiedTraineeData(tz);
+  var result = _getVerifiedTraineeData(tz);
   result.otpVerified = true;
   return result;
 }
 
-function getVerifiedTraineeData(tz) {
+function getVerifiedTraineeData(tokenOrEditToken, tz) {
+  // v6.1.1: dual-token — accept session token OR admin-edit token
+  var cache = CacheService.getScriptCache();
+  var editTz = cache.get('edit-token-' + tokenOrEditToken);
+  if (editTz) {
+    cache.remove('edit-token-' + tokenOrEditToken); // one-time use
+    // Valid admin edit token — proceed
+  } else {
+    // Must be a session token
+    requireAuth(tokenOrEditToken, ['admin']);
+  }
+  return _getVerifiedTraineeData(tz);
+}
+
+function _getVerifiedTraineeData(tz) {
   tz = normalizeId(tz);
   var ss = SpreadsheetApp.openById(SOURCE_SHEET_ID);
   var sheet = ss.getSheets()[0];
@@ -875,7 +979,7 @@ function getVerifiedTraineeData(tz) {
     if (normalizeId(data[i][tzCol]) === tz) { rowIdx = i; break; }
   }
   if (rowIdx === -1) return {success: false, found: false};
-  var trainees = getTraineeData();
+  var trainees = _getTraineeData();
   var name = nameCol > -1 ? String(data[rowIdx][nameCol] || '').trim() : '';
   var trainee = trainees[name];
   if (!trainee) {
@@ -957,7 +1061,7 @@ function lookupByTZ(tz) {
     return {found: true, needsEmail: true, name: name};
   }
 
-  var trainees = getTraineeData();
+  var trainees = _getTraineeData();
   var name = nameCol > -1 ? String(data[rowIdx][nameCol] || '').trim() : '';
   var trainee = trainees[name];
   var suspensionReason = (traineeStatus === 'מושעה' && reasonCol > -1) ? String(data[rowIdx][reasonCol] || '').trim() : '';
@@ -1322,7 +1426,8 @@ function updateTraineeData(updatedData) {
 // v5.0.0 — Instructor management functions
 // =====================================================
 
-function addInstructor(instrData) {
+function addInstructor(token, instrData) {
+  requireAuth(token, ['admin']);
   if (!instrData) return {success: false, message: 'חסרים נתונים'};
   var tz = normalizeId(instrData.tz);
   if (!tz || !instrData.name) return {success: false, message: 'ת.ז. ושם מלא הם שדות חובה'};
@@ -1344,7 +1449,8 @@ function addInstructor(instrData) {
   }
 }
 
-function updateInstructor(tz, instrData) {
+function updateInstructor(token, tz, instrData) {
+  requireAuth(token, ['admin']);
   if (!tz || !instrData) return {success: false, message: 'חסרים נתונים'};
   tz = normalizeId(tz);
   try {
@@ -1406,7 +1512,8 @@ function getTraineeStatusData(tz) {
   return {status: 'פעיל', reason: '', date: ''};
 }
 
-function updateTraineeStatus(tz, status, reason) {
+function updateTraineeStatus(token, tz, status, reason) {
+  requireAuth(token, ['admin']);
   if (!tz || !status) return {success: false, message: 'חסרים נתונים'};
   tz = normalizeId(tz);
   var validStatuses = ['פעיל', 'לא פעיל', 'מושעה'];
@@ -1444,7 +1551,8 @@ function updateTraineeStatus(tz, status, reason) {
   }
 }
 
-function searchTrainees(query) {
+function searchTrainees(token, query) {
+  requireAuth(token, ['admin']);
   if (!query || !String(query).trim()) return [];
   var q = String(query).trim().toLowerCase();
   try {
@@ -1482,7 +1590,8 @@ function searchTrainees(query) {
   }
 }
 
-function getSuspendedTrainees() {
+function getSuspendedTrainees(token) {
+  requireAuth(token, ['admin']);
   try {
     var ss = SpreadsheetApp.openById(SOURCE_SHEET_ID);
     var sheet = ss.getSheets()[0];
@@ -1520,7 +1629,8 @@ function getSuspendedTrainees() {
 // v5.0.0 — Suspension reasons management
 // =====================================================
 
-function getSuspensionReasons() {
+function getSuspensionReasons(token) {
+  requireAuth(token, ['admin']);
   try {
     if (!SUSPENSION_REASONS_SHEET_ID) return ['רישיון לא בתוקף', 'בעיית בטיחות', 'חוסר ציוד מתאים', 'סיבה אחרת'];
     var ss = SpreadsheetApp.openById(SUSPENSION_REASONS_SHEET_ID);
@@ -1540,7 +1650,8 @@ function getSuspensionReasons() {
   }
 }
 
-function addSuspensionReason(reason) {
+function addSuspensionReason(token, reason) {
+  requireAuth(token, ['admin']);
   if (!reason || !String(reason).trim()) return {success: false, message: 'חסרה סיבה'};
   try {
     if (!SUSPENSION_REASONS_SHEET_ID) return {success: false, message: 'גיליון סיבות השעיה לא מוגדר'};
@@ -1558,7 +1669,8 @@ function addSuspensionReason(reason) {
   }
 }
 
-function getAllSuspensionReasons() {
+function getAllSuspensionReasons(token) {
+  requireAuth(token, ['admin']);
   try {
     if (!SUSPENSION_REASONS_SHEET_ID) return [];
     var ss = SpreadsheetApp.openById(SUSPENSION_REASONS_SHEET_ID);
@@ -1578,7 +1690,8 @@ function getAllSuspensionReasons() {
   }
 }
 
-function toggleSuspensionReason(reason, active) {
+function toggleSuspensionReason(token, reason, active) {
+  requireAuth(token, ['admin']);
   if (!reason) return {success: false, message: 'חסרה סיבה'};
   try {
     if (!SUSPENSION_REASONS_SHEET_ID) return {success: false, message: 'גיליון סיבות השעיה לא מוגדר'};
@@ -1613,8 +1726,14 @@ function checkAdminAuth(tz) {
   try { email = String(Session.getActiveUser().getEmail() || '').trim().toLowerCase(); } catch(e) {}
   if (!email) return {authenticated: false, needsOtp: true};
   // Google session available — check if it matches this instructor or owner
-  if (isOwnerEmail(email)) return {authenticated: true};
-  if (inst.email && String(inst.email).trim().toLowerCase() === email) return {authenticated: true};
+  if (isOwnerEmail(email)) {
+    var sessionToken = _createUserSession(tz, 'admin', inst.name);
+    return {authenticated: true, sessionToken: sessionToken};
+  }
+  if (inst.email && String(inst.email).trim().toLowerCase() === email) {
+    var sessionToken = _createUserSession(tz, 'admin', inst.name);
+    return {authenticated: true, sessionToken: sessionToken};
+  }
   return {authenticated: false, needsOtp: false, message: 'החשבון המחובר אינו תואם למדריך זה'};
 }
 
@@ -1670,5 +1789,7 @@ function verifyAdminOTP(tz, code) {
     return {success: false, message: 'קוד שגוי. נותרו ' + (OTP_MAX_ATTEMPTS - otpData.attempts) + ' ניסיונות'};
   }
   cache.remove('otp-admin-' + tz);
-  return {success: true};
+  var inst = getInstructorData(tz);
+  var sessionToken = _createUserSession(tz, 'admin', inst.name);
+  return {success: true, sessionToken: sessionToken};
 }

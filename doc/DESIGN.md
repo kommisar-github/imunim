@@ -8,7 +8,7 @@
 
 - **Purpose**: Track trainee attendance, weapons/tools, and session management
 - **Architecture**: Google Apps Script web app (7 `.gs` files), deployed as public URL with Hebrew RTL interface
-- **Version**: 5.2.0
+- **Version**: 6.1.1
 - **Key Features**: 4-tier role system (owner/admin/instructor/trainee), session-based polls, deputy instructors, OTP hybrid auth, suspension management, simplified auth, unified CSS with GAS iframe mobile zoom fix
 - **Interface**: Dark theme, responsive design, Hebrew right-to-left layout
 - **Target Users**: Owners (system config), admins (overview & management), instructors (session management), trainees (registration & attendance poll)
@@ -26,13 +26,18 @@ The UI design, color scheme, spacing, and card layouts are finalized. Any modifi
 - **DO NOT** attempt to modify code directly in the GAS web editor
 - This preserves version control and prevents conflicts
 
-### Rule 3: Increment Patch Version on Every Edit
-- **CRITICAL**: Every .gs file contains a version comment header at the top: `// v5.2.0`
+### Rule 3: Version Format and Increment on Every Edit
+- **Version format**: `v{major}.{phase}.{deployment}` — e.g. `v6.1.1`
+  - **major** — major version (currently 6)
+  - **phase** — maps to the implementation phase within the major version (see `PLAN_v6.md` for phase definitions)
+  - **deployment** — increments with each deployment within that phase (0 = initial, 1+ = fixes/patches)
+- **CRITICAL**: Every .gs file contains a version comment header at the top: `// filename.gs — אימוני ירי v6.1.1`
 - All .gs files share the SAME version number
-- The config.gs file contains `var SCRIPT_VERSION = '5.2.0';`
-- On every code modification, increment the patch version (5.2.0 → 5.2.1) in:
+- The config.gs file contains `var SCRIPT_VERSION = '6.1.1';`
+- On every code modification, increment the **deployment** number in:
   1. Comment headers in ALL .gs files (config.gs, routing.gs, data.gs, pages.gs, setup.gs, logo.gs, backup.gs)
   2. The `SCRIPT_VERSION` constant in config.gs
+- When starting a new implementation phase, bump the **phase** number and reset deployment to 0 (e.g. v6.1.3 → v6.2.0)
 - This ensures version consistency and tracks deployment history
 
 ## 3. File Structure
@@ -823,8 +828,8 @@ if (REQUIRE_LOGIN && isProtectedRoute) {
 All constants defined in `config.gs`:
 
 ```javascript
-// Version (sync across ALL .gs files)
-var SCRIPT_VERSION = '5.2.0';
+// Version — format: v{major}.{phase}.{deployment} (sync across ALL .gs files)
+var SCRIPT_VERSION = '6.1.1';
 
 // Sheet limits
 var MAX_TOOLS = 4;
@@ -875,8 +880,9 @@ var OTP_BLOCK_SECONDS = 900;                 // Block duration after max attempt
 Edit .gs files in `/sessions/amazing-vibrant-thompson/mnt/ClaudeCowork/Imun/Multi/`
 
 ### Step 2: Increment Version
-1. Update comment header in ALL .gs files: `// v4.0.1` (example)
-2. Update `SCRIPT_VERSION` in config.gs: `var SCRIPT_VERSION = '4.0.1';`
+1. Update comment header in ALL .gs files: `// filename.gs — אימוני ירי v6.1.1` (example)
+2. Update `SCRIPT_VERSION` in config.gs: `var SCRIPT_VERSION = '6.1.1';`
+3. See Rule 3 above for when to bump phase vs. deployment
 
 ### Step 3: Push to Apps Script
 ```bash
@@ -1219,4 +1225,4 @@ Use XML entities for Hebrew-compatible quotes and apostrophes:
 
 ---
 
-**Last Updated**: 2026-04-18 | **Version**: 5.2.0 | **Agent Ready**: Yes
+**Last Updated**: 2026-04-18 | **Version**: 6.1.1 | **Agent Ready**: Yes

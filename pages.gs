@@ -1,4 +1,31 @@
-// pages.gs — אימוני ירי v5.2.0
+// pages.gs — אימוני ירי v6.1.5
+
+// =====================================================
+// v6.0.0 — Client-side session helpers
+// =====================================================
+
+function getSessionScript() {
+  return '<script>'
+    + 'var SESSION_KEY="imun_session";'
+    + 'function saveSession(token){try{sessionStorage.setItem(SESSION_KEY,token)}catch(e){}}'
+    + 'function loadSession(){try{return sessionStorage.getItem(SESSION_KEY)||""}catch(e){return""}}'
+    + 'function clearSession(){try{sessionStorage.removeItem(SESSION_KEY)}catch(e){}}'
+    + 'function doLogout(){var t=loadSession();if(t){google.script.run.destroyUserSession(t)}clearSession();location.reload()}'
+    + 'function handleAuthError(e){if(e&&e.message&&e.message.indexOf("\u05D4\u05D6\u05D3\u05D4\u05D5\u05EA")>-1){clearSession();location.reload()}else{alert(e&&e.message?e.message:"\u05E9\u05D2\u05D9\u05D0\u05D4")}}'
+    + '</script>';
+}
+
+// =====================================================
+// Shared toast notification (single source of truth)
+// =====================================================
+
+function getToastHtml() {
+  return '<div id="toast" class="toast"></div>';
+}
+
+function getToastScript() {
+  return 'function showToast(msg,type){var t=document.getElementById("toast");t.textContent=msg;t.className="toast show"+(type?" "+type:"");setTimeout(function(){t.className="toast"},3500);}'
+}
 
 // =====================================================
 // Shared CSS & responsive helpers (single source of truth)
@@ -30,10 +57,10 @@ function getBaseCSS() {
   + '.btn-new{background:#7c3aed;color:#fff}.btn-new:hover{background:#6d28d9}'
   + '.btn-back{background:#475569;color:#fff}.btn-back:hover{background:#64748b}'
   + '.btn-small{padding:8px 16px;font-size:13px}'
-  + '.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);padding:14px 28px;border-radius:10px;font-size:15px;font-weight:600;display:none;z-index:999}'
-  + '.toast.show{display:block}'
-  + '.toast.success{background:#16a34a;color:#fff}'
-  + '.toast.error{background:#dc2626;color:#fff}'
+  + '.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1e293b;color:#4ade80;padding:12px 24px;border-radius:10px;border:1px solid #334155;font-size:14px;font-weight:600;opacity:0;transition:opacity .3s;z-index:999;pointer-events:none}'
+  + '.toast.show{opacity:1;pointer-events:auto}'
+  + '.toast.success{background:#16a34a;color:#fff;border-color:#16a34a}'
+  + '.toast.error{background:#dc2626;color:#fff;border-color:#dc2626}'
   + '.spinner{display:none;text-align:center;padding:20px;color:#60a5fa}'
   + '.spinner.show{display:block}';
 }
@@ -92,7 +119,7 @@ function getLandingHtml() {
 // Register Page — רישום מתאמנים
 // =====================================================
 
-function getLookupHtml(prefillTz, adminMode) {
+function getLookupHtml(prefillTz, adminMode, editToken) {
   return '<!DOCTYPE html><html lang="he" dir="rtl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">'
   +'<title>\u05E8\u05D9\u05E9\u05D5\u05DD \u05DE\u05EA\u05D0\u05DE\u05E0\u05D9\u05DD</title>'
   +'<style>' + getBaseCSS()
@@ -114,7 +141,7 @@ function getLookupHtml(prefillTz, adminMode) {
 +'.field-hint.warn{color:#f59e0b}'
 +'a.link{color:#60a5fa;text-decoration:none}a.link:hover{text-decoration:underline}'
 +'</style></head><body>'
-  +'<div id="toast" class="toast"></div>'
+  + getToastHtml()
   +'<div class="container">'
   +'<div id="tzArea" class="section" style="max-width:420px;margin:40px auto">'
   +'<h1>\u05E8\u05D9\u05E9\u05D5\u05DD \u05DE\u05EA\u05D0\u05DE\u05E0\u05D9\u05DD</h1>'
@@ -129,7 +156,7 @@ function getLookupHtml(prefillTz, adminMode) {
   +'</div>'
   +'<script>'
   +'var editMode=false;var currentTz="";'
-  +'function showToast(msg,type){var t=document.getElementById("toast");t.textContent=msg;t.className="toast show "+type;setTimeout(function(){t.className="toast"},3500)}'
+  + getToastScript()
   +'function withLoading(btn,cb){if(!btn){cb(function(){});return;}btn.disabled=true;btn.dataset.origText=btn.dataset.origText||btn.textContent;btn.textContent="\u05D8\u05D5\u05E2\u05DF...";var done=function(){btn.disabled=false;btn.textContent=btn.dataset.origText;};cb(done);}'
 
   +'function doSearch(){'
@@ -145,7 +172,7 @@ function getLookupHtml(prefillTz, adminMode) {
   +'if(ADMIN_MODE){'
   +'google.script.run.withSuccessHandler(function(r){done();'
   +'if(r&&r.found){showResult({found:true,name:r.name,tz:r.tz,phone:r.phone,tools:r.tools})}else{showResult({found:false})}'
-  +'}).withFailureHandler(failHandler).getVerifiedTraineeData(tz)'
+  +'}).withFailureHandler(failHandler).getVerifiedTraineeData(EDIT_TOKEN,tz)'
   +'}else{'
   +'google.script.run.withSuccessHandler(function(r){done();showResult(r)}).withFailureHandler(failHandler).lookupByTZ(tz)}});}'
 
@@ -309,6 +336,7 @@ function getLookupHtml(prefillTz, adminMode) {
   // Auto-search if tz parameter was passed via URL (injected server-side)
   +'var PREFILL_TZ="' + (prefillTz || '') + '";'
   +'var ADMIN_MODE=' + (adminMode ? 'true' : 'false') + ';'
+  +'var EDIT_TOKEN="' + (editToken || '') + '";'
   +'if(ADMIN_MODE){document.querySelector("h1").textContent="\u05E2\u05E8\u05D9\u05DB\u05EA \u05E4\u05E8\u05D8\u05D9 \u05DE\u05EA\u05D0\u05DE\u05DF (\u05DE\u05E0\u05D4\u05DC)";document.querySelector("p.sub").textContent="\u05DE\u05E6\u05D1 \u05E2\u05E8\u05D9\u05DB\u05D4 \u05E2\u05DC \u05D9\u05D3\u05D9 \u05DE\u05E0\u05D4\u05DC";}'
   +'if(PREFILL_TZ){document.getElementById("tzInput").value=PREFILL_TZ;doSearch()}'
   +'<\/script>' + getZoomScript('520px')
@@ -376,7 +404,7 @@ function getPollHtml(sessionId) {
   +'<div class="expired-detail" id="expiredDetail"></div>'
   +'<button class="btn-back" onclick="closeExpired()">\u05D7\u05D6\u05D5\u05E8</button>'
   +'</div></div>'
-  +'<div id="toast" class="toast"></div>'
+  + getToastHtml()
   +'<div class="container">'
   +'<h1>\u05E1\u05E7\u05E8 \u05E0\u05D5\u05DB\u05D7\u05D5\u05EA</h1>'
   +'<div id="sessionPickerArea" class="session-picker" style="display:none">'
@@ -428,7 +456,7 @@ function getPollHtml(sessionId) {
 
   +'initSessionPicker();'
 
-  +'function showToast(msg,type){var t=document.getElementById("toast");t.textContent=msg;t.className="toast show "+type;setTimeout(function(){t.className="toast"},3500)}'
+  + getToastScript()
 
   +'function withLoading(btn,cb){if(!btn){cb(function(){});return;}btn.disabled=true;btn.dataset.origText=btn.dataset.origText||btn.textContent;btn.textContent="\u05D8\u05D5\u05E2\u05DF...";var done=function(){btn.disabled=false;btn.textContent=btn.dataset.origText;};cb(done);}'
 
@@ -835,7 +863,7 @@ function getInstructorDashboardHtml() {
 +'.btn-att{background:#8b5cf6;color:#fff}.btn-att:hover{background:#7c3aed}'
 +''
 +'</style></head><body>'
-+'<div id="toast" class="toast"></div>'
++ getToastHtml()
 +'<div class="container">'
 +'<div id="pageHeader" style="display:none"><h1>\u05DC\u05D5\u05D7 \u05DE\u05D3\u05E8\u05D9\u05DA</h1>'
 +'<p class="subtitle">\u05E0\u05D9\u05D4\u05D5\u05DC \u05D0\u05D9\u05DE\u05D5\u05E0\u05D9 \u05D9\u05E8\u05D9 \u05E9\u05DC\u05DA</p></div>'
@@ -872,7 +900,7 @@ function getInstructorDashboardHtml() {
 +'var POLL_URL="' + WEBAPP_URL + '?action=poll&session=";'
 +'var currentInstructor={};var allInstructors=[];'
 
-+'function showToast(msg){var t=document.getElementById("toast");t.textContent=msg;t.className="toast show success";setTimeout(function(){t.className="toast"},3000)}'
++ getToastScript()
 
 +'function withLoading(btn,cb){if(!btn){cb(function(){});return;}btn.disabled=true;btn.dataset.origText=btn.dataset.origText||btn.textContent;btn.textContent="\u05D8\u05D5\u05E2\u05DF...";var done=function(){btn.disabled=false;btn.textContent=btn.dataset.origText;};cb(done);}'
 
@@ -1046,8 +1074,6 @@ function getAdminDashboardHtml() {
 +'.link-icon{font-size:28px;flex-shrink:0}'
 +'.link-text h3{font-size:15px;color:#f1f5f9;margin-bottom:3px}'
 +'.link-text p{font-size:12px;color:#64748b}'
-+'.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1e293b;color:#4ade80;padding:12px 24px;border-radius:10px;border:1px solid #334155;font-size:14px;opacity:0;transition:opacity .3s;z-index:999;pointer-events:none}'
-+'.toast.show{opacity:1}'
 +'.footer{text-align:center;color:#475569;font-size:12px;margin-top:24px}'
 +'.att-panel{position:relative}'
 +'.att-header h3{color:#60a5fa;margin-bottom:12px}'
@@ -1068,6 +1094,7 @@ function getAdminDashboardHtml() {
 +'.status-active-txt{color:#4ade80}.status-closed-txt{color:#94a3b8}'
 +'.owner-badge{display:inline-block;background:#f59e0b;color:#0f172a;font-size:11px;font-weight:700;padding:2px 10px;border-radius:8px;margin-right:8px}'
 +'</style></head><body>'
++ getSessionScript()
 +'<div class="container">'
 +'<div id="loginArea">'
 +'<div class="section" style="max-width:420px;margin:80px auto">'
@@ -1084,8 +1111,10 @@ function getAdminDashboardHtml() {
 +'<button class="btn btn-small" onclick="doResendAdminOtp()" style="background:#475569;color:#e2e8f0;margin-top:8px">\u05E9\u05DC\u05D7 \u05E9\u05D5\u05D1</button>'
 +'</div></div>'
 +'<div id="dashboardArea" style="display:none">'
-+'<h1>\u05DC\u05D5\u05D7 \u05E0\u05D9\u05D4\u05D5\u05DC</h1>'
-+'<p class="subtitle" id="welcomeMsg"></p>'
++'<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">'
++'<div><h1 style="margin-bottom:4px">\u05DC\u05D5\u05D7 \u05E0\u05D9\u05D4\u05D5\u05DC</h1><p class="subtitle" id="welcomeMsg" style="margin-bottom:0"></p></div>'
++'<button class="btn btn-small" onclick="doLogout()" style="background:#475569;color:#e2e8f0">\u05D4\u05EA\u05E0\u05EA\u05E7\u05D5\u05EA</button>'
++'</div>'
 
 +'<div class="section">'
 +'<h2>\uD83D\uDCCA \u05D0\u05D9\u05DE\u05D5\u05E0\u05D9\u05DD \u05E4\u05E2\u05D9\u05DC\u05D9\u05DD</h2>'
@@ -1122,7 +1151,7 @@ function getAdminDashboardHtml() {
 +'<div id="traineeCard" class="trainee-card" style="display:none">'
 +'<h3 id="traineeCardName"></h3>'
 +'<div class="trainee-info"><div><span class="ti-label">\u05EA.\u05D6.:</span> <span class="ti-value" id="traineeCardTz"></span></div><div><span class="ti-label">\u05D8\u05DC\u05E4\u05D5\u05DF:</span> <span class="ti-value" id="traineeCardPhone"></span></div></div>'
-+'<div><a id="traineeEditLink" href="#" target="_blank" class="btn btn-primary btn-small">\u05E2\u05E8\u05D9\u05DB\u05EA \u05E4\u05E8\u05D8\u05D9\u05DD \u2192</a></div>'
++'<div><button id="traineeEditLink" class="btn btn-primary btn-small" onclick="openTraineeEdit()">\u05E2\u05E8\u05D9\u05DB\u05EA \u05E4\u05E8\u05D8\u05D9\u05DD \u2192</button></div>'
 +'<div class="status-section">'
 +'<h3 style="font-size:15px;margin-bottom:8px">\u05E0\u05D9\u05D4\u05D5\u05DC \u05E1\u05D8\u05D8\u05D5\u05E1</h3>'
 +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">\u05E1\u05D8\u05D8\u05D5\u05E1 \u05E0\u05D5\u05DB\u05D7\u05D9: <span id="traineeCardStatus"></span></div>'
@@ -1186,7 +1215,7 @@ function getAdminDashboardHtml() {
 
 +'<div class="footer">v' + SCRIPT_VERSION + ' | \u05D0\u05D9\u05DE\u05D5\u05E0\u05D9 \u05D9\u05E8\u05D9 — \u05DC\u05D5\u05D7 \u05E0\u05D9\u05D4\u05D5\u05DC</div>'
 +'</div>'
-+'<div id="toast" class="toast"></div>'
++ getToastHtml()
 +'</div>'
 +'<script>'
 +'var WEBAPP_URL="' + WEBAPP_URL + '";'
@@ -1194,19 +1223,26 @@ function getAdminDashboardHtml() {
 +'var currentAdmin={};var allInstructorsList=[];var isOwner=false;'
 +'var ownerAllSessions=[];var ownerCurrentFilter="all";'
 
-+'function showToast(msg){var t=document.getElementById("toast");t.textContent=msg;t.className="toast show";setTimeout(function(){t.className="toast"},3000)}'
+// v6.1.1 — Auto-restore session on page load
++'(function(){var token=loadSession();if(!token)return;google.script.run.withSuccessHandler(function(r){if(r.valid&&r.role==="admin"){currentAdmin={tz:r.tz,name:r.name,admin:true};isOwner=r.isOwner;enterAdminDashboard();}}).withFailureHandler(function(){clearSession();}).validateUserSession(token);})();'
+
++ getToastScript()
 
 +'function withLoading(btn,cb){if(!btn){cb(function(){});return;}btn.disabled=true;btn.dataset.origText=btn.dataset.origText||btn.textContent;btn.textContent="\u05D8\u05D5\u05E2\u05DF...";var done=function(){btn.disabled=false;btn.textContent=btn.dataset.origText;};cb(done);}'
 
-+'function doAdminLogin(){var tz=document.getElementById("tzInput").value.trim();if(!tz){alert("\u05D4\u05D6\u05DF \u05EA.\u05D6.");return;}var btn=event.target.closest("button");withLoading(btn,function(done){google.script.run.withSuccessHandler(function(inst){if(!inst.name){done();alert("\u05DE\u05D3\u05E8\u05D9\u05DA \u05DC\u05D0 \u05E0\u05DE\u05E6\u05D0");return;}if(!inst.admin){done();alert("\u05D0\u05D9\u05DF \u05D4\u05E8\u05E9\u05D0\u05EA \u05E0\u05D9\u05D4\u05D5\u05DC");return;}currentAdmin=inst;google.script.run.withSuccessHandler(function(auth){done();if(auth.authenticated){enterAdminDashboard();}else if(auth.needsOtp){sendAdminOtp();}else{alert(auth.message||"\u05D0\u05D9\u05DF \u05D4\u05E8\u05E9\u05D0\u05D4");}}).withFailureHandler(function(e){done();alert("\u05E9\u05D2\u05D9\u05D0\u05D4: "+e.message);}).checkAdminAuth(tz);}).withFailureHandler(function(e){done();alert("\u05E9\u05D2\u05D9\u05D0\u05D4: "+e.message);}).getInstructorData(tz);});}'
++'document.getElementById("tzInput").addEventListener("keydown",function(e){if(e.key==="Enter")doAdminLogin()});'
+
++'function doAdminLogin(){var tz=document.getElementById("tzInput").value.trim();if(!tz){alert("\u05D4\u05D6\u05DF \u05EA.\u05D6.");return;}var btn=document.querySelector("#loginArea button");withLoading(btn,function(done){google.script.run.withSuccessHandler(function(inst){if(!inst.name){done();alert("\u05DE\u05D3\u05E8\u05D9\u05DA \u05DC\u05D0 \u05E0\u05DE\u05E6\u05D0");return;}if(!inst.admin){done();alert("\u05D0\u05D9\u05DF \u05D4\u05E8\u05E9\u05D0\u05EA \u05E0\u05D9\u05D4\u05D5\u05DC");return;}currentAdmin=inst;google.script.run.withSuccessHandler(function(auth){done();if(auth.authenticated){if(auth.sessionToken)saveSession(auth.sessionToken);enterAdminDashboard();}else if(auth.needsOtp){sendAdminOtp();}else{alert(auth.message||"\u05D0\u05D9\u05DF \u05D4\u05E8\u05E9\u05D0\u05D4");}}).withFailureHandler(function(e){done();alert("\u05E9\u05D2\u05D9\u05D0\u05D4: "+e.message);}).checkAdminAuth(tz);}).withFailureHandler(function(e){done();alert("\u05E9\u05D2\u05D9\u05D0\u05D4: "+e.message);}).getInstructorData(tz);});}'
 
 +'function sendAdminOtp(){google.script.run.withSuccessHandler(function(r){if(r.success){document.getElementById("loginArea").style.display="none";document.getElementById("otpArea").style.display="block";document.getElementById("otpMsg").textContent="\u05E7\u05D5\u05D3 \u05D0\u05D9\u05DE\u05D5\u05EA \u05E0\u05E9\u05DC\u05D7 \u05DC: "+r.maskedEmail;document.getElementById("otpInput").value="";document.getElementById("otpInput").focus();}else{alert(r.message);}}).withFailureHandler(function(e){alert("\u05E9\u05D2\u05D9\u05D0\u05D4: "+e.message);}).requestAdminOTP(currentAdmin.tz);}'
 
-+'function doVerifyAdminOtp(){var code=document.getElementById("otpInput").value.trim();if(!code){alert("\u05D4\u05D6\u05DF \u05E7\u05D5\u05D3 \u05D0\u05D9\u05DE\u05D5\u05EA");return;}var btn=event.target.closest("button");withLoading(btn,function(done){google.script.run.withSuccessHandler(function(r){done();if(r.success){enterAdminDashboard();}else{alert(r.message);}}).withFailureHandler(function(e){done();alert("\u05E9\u05D2\u05D9\u05D0\u05D4: "+e.message);}).verifyAdminOTP(currentAdmin.tz,code);});}'
++'document.getElementById("otpInput").addEventListener("keydown",function(e){if(e.key==="Enter")doVerifyAdminOtp()});'
+
++'function doVerifyAdminOtp(){var code=document.getElementById("otpInput").value.trim();if(!code){alert("\u05D4\u05D6\u05DF \u05E7\u05D5\u05D3 \u05D0\u05D9\u05DE\u05D5\u05EA");return;}var btn=document.querySelector("#otpArea button");withLoading(btn,function(done){google.script.run.withSuccessHandler(function(r){done();if(r.success){if(r.sessionToken)saveSession(r.sessionToken);enterAdminDashboard();}else{alert(r.message);}}).withFailureHandler(function(e){done();alert("\u05E9\u05D2\u05D9\u05D0\u05D4: "+e.message);}).verifyAdminOTP(currentAdmin.tz,code);});}'
 
 +'function doResendAdminOtp(){sendAdminOtp();}'
 
-+'function enterAdminDashboard(){if(window._adminZoomed){document.body.style.zoom="";document.body.style.width="";document.body.style.overflowX="";delete window._adminZoomed;}document.getElementById("loginArea").style.display="none";document.getElementById("otpArea").style.display="none";document.getElementById("dashboardArea").style.display="block";document.getElementById("welcomeMsg").textContent="\u05E9\u05DC\u05D5\u05DD, "+currentAdmin.name;loadAdminActiveSessions();loadInstructorsList();loadSuspensionReasons();loadReasonsList();loadSuspendedList();google.script.run.withSuccessHandler(function(result){isOwner=result;if(isOwner){document.getElementById("ownerSections").style.display="block";loadOwnerInstrSelect();}}).isOwnerByTz(currentAdmin.tz);}'
++'function enterAdminDashboard(){if(window._adminZoomed){document.body.style.zoom="";document.body.style.width="";document.body.style.overflowX="";delete window._adminZoomed;}document.getElementById("loginArea").style.display="none";document.getElementById("otpArea").style.display="none";document.getElementById("dashboardArea").style.display="block";document.getElementById("welcomeMsg").textContent="\u05E9\u05DC\u05D5\u05DD, "+currentAdmin.name;loadAdminActiveSessions();loadInstructorsList();loadSuspensionReasons();loadSuspendedList();if(isOwner){document.getElementById("ownerSections").style.display="block";loadOwnerInstrSelect();loadReasonsList();}else{google.script.run.withSuccessHandler(function(result){isOwner=result;if(isOwner){document.getElementById("ownerSections").style.display="block";loadOwnerInstrSelect();loadReasonsList();}}).isOwnerByTz(currentAdmin.tz);}}'
 
 +'function loadAdminActiveSessions(){google.script.run.withSuccessHandler(function(sessions){var c=document.getElementById("activeSessionsList");if(!sessions||sessions.length===0){c.innerHTML="<div class=\\"active-empty\\">\u05D0\u05D9\u05DF \u05D0\u05D9\u05DE\u05D5\u05E0\u05D9\u05DD \u05E4\u05E2\u05D9\u05DC\u05D9\u05DD</div>";return;}var h="";for(var i=0;i<sessions.length;i++){var s=sessions[i];h+="<div class=\\"active-item\\"><div class=\\"item-info\\"><span class=\\"item-date\\">"+s.date+"</span><span class=\\"item-instructor\\">"+s.instructorName+"</span>"+(s.notes?"<span class=\\"item-notes\\">"+s.notes+"</span>":"")+"</div><div style=\\"display:flex;gap:6px;flex-wrap:wrap\\"><button class=\\"btn btn-att btn-small\\" data-sid=\\""+s.sessionId+"\\" onclick=\\"showAttendanceList(this.dataset.sid)\\">\u270F\uFE0F \u05E8\u05E9\u05D9\u05DE\u05EA \u05DE\u05D2\u05D9\u05E2\u05D9\u05DD</button><button class=\\"btn btn-primary btn-small\\" data-sid=\\""+s.sessionId+"\\" onclick=\\"adminPrint(this.dataset.sid)\\">\uD83D\uDDA8\uFE0F</button><button class=\\"btn btn-danger btn-small\\" data-sid=\\""+s.sessionId+"\\" onclick=\\"adminClose(this.dataset.sid,this)\\">\u05E1\u05D2\u05D5\u05E8</button></div></div>";}c.innerHTML=h;}).getActiveSessions()}'
 
@@ -1224,49 +1260,52 @@ function getAdminDashboardHtml() {
 
 +'function hideAttendanceList(){var panel=document.getElementById("attPanel");if(panel){panel.remove();}var da=document.getElementById("dashboardArea");var sections=da.querySelectorAll(".section");for(var i=0;i<sections.length;i++){sections[i].style.display="block";}}'
 
-+'function loadInstructorsList(){google.script.run.withSuccessHandler(function(list){allInstructorsList=list;var c=document.getElementById("instructorsList");if(!list||list.length===0){c.innerHTML="<div class=\\"active-empty\\">\u05D0\u05D9\u05DF \u05DE\u05D3\u05E8\u05D9\u05DB\u05D9\u05DD</div>";return;}var h="<table class=\\"instr-table\\"><thead><tr><th>\u05E9\u05DD</th><th>\u05EA.\u05D6.</th><th>\u05D8\u05DC\u05E4\u05D5\u05DF</th><th>\u05D0\u05D9\u05DE\u05D9\u05D9\u05DC</th><th>\u05D4\u05E8\u05E9\u05D0\u05D4</th><th></th></tr></thead><tbody>";for(var i=0;i<list.length;i++){var inst=list[i];h+="<tr><td>"+inst.name+"</td><td>"+inst.tz+"</td><td>"+(inst.phone||"-")+"</td><td>"+(inst.email||"-")+"</td><td>"+(inst.admin?"<span class=\\"badge-admin\\">\u05DE\u05E0\u05D4\u05DC</span>":"-")+"</td><td><button class=\\"btn btn-small\\" style=\\"background:#475569;color:#fff\\" onclick=\\"showEditInstructor(\'"+inst.tz+"\')\\">\u05E2\u05E8\u05D9\u05DB\u05D4</button></td></tr>";}h+="</tbody></table>";c.innerHTML=h;}).withFailureHandler(function(e){document.getElementById("instructorsList").innerHTML="<div class=\\"active-empty\\">\u05E9\u05D2\u05D9\u05D0\u05D4: "+e.message+"</div>";}).getAllInstructors()}'
++'function loadInstructorsList(){google.script.run.withSuccessHandler(function(list){allInstructorsList=list;var c=document.getElementById("instructorsList");if(!list||list.length===0){c.innerHTML="<div class=\\"active-empty\\">\u05D0\u05D9\u05DF \u05DE\u05D3\u05E8\u05D9\u05DB\u05D9\u05DD</div>";return;}var h="<table class=\\"instr-table\\"><thead><tr><th>\u05E9\u05DD</th><th>\u05EA.\u05D6.</th><th>\u05D8\u05DC\u05E4\u05D5\u05DF</th><th>\u05D0\u05D9\u05DE\u05D9\u05D9\u05DC</th><th>\u05D4\u05E8\u05E9\u05D0\u05D4</th><th></th></tr></thead><tbody>";for(var i=0;i<list.length;i++){var inst=list[i];h+="<tr><td>"+inst.name+"</td><td>"+inst.tz+"</td><td>"+(inst.phone||"-")+"</td><td>"+(inst.email||"-")+"</td><td>"+(inst.admin?"<span class=\\"badge-admin\\">\u05DE\u05E0\u05D4\u05DC</span>":"-")+"</td><td><button class=\\"btn btn-small\\" style=\\"background:#475569;color:#fff\\" onclick=\\"showEditInstructor(\'"+inst.tz+"\')\\">\u05E2\u05E8\u05D9\u05DB\u05D4</button></td></tr>";}h+="</tbody></table>";c.innerHTML=h;}).withFailureHandler(handleAuthError).getAllInstructors(loadSession())}'
 
 +'function toggleAddInstructor(){var f=document.getElementById("addInstrForm");f.style.display=f.style.display==="none"?"block":"none";document.getElementById("editInstrForm").style.display="none";}'
 
-+'function doAddInstructor(){var d={name:document.getElementById("newInstrName").value.trim(),tz:document.getElementById("newInstrTz").value.trim(),license:document.getElementById("newInstrLicense").value.trim(),phone:document.getElementById("newInstrPhone").value.trim(),email:document.getElementById("newInstrEmail").value.trim(),admin:document.getElementById("newInstrAdmin").checked};if(!d.name||!d.tz){alert("\u05E9\u05DD \u05DE\u05DC\u05D0 \u05D5\u05EA.\u05D6. \u05D4\u05DD \u05E9\u05D3\u05D5\u05EA \u05D7\u05D5\u05D1\u05D4");return;}var btn=event.target.closest("button");withLoading(btn,function(done){google.script.run.withSuccessHandler(function(r){done();if(r.success){showToast(r.message);document.getElementById("addInstrForm").style.display="none";document.getElementById("newInstrName").value="";document.getElementById("newInstrTz").value="";document.getElementById("newInstrLicense").value="";document.getElementById("newInstrPhone").value="";document.getElementById("newInstrEmail").value="";document.getElementById("newInstrAdmin").checked=false;loadInstructorsList();}else{alert(r.message);}}).withFailureHandler(function(e){done();alert("\u05E9\u05D2\u05D9\u05D0\u05D4: "+e.message);}).addInstructor(d);});}'
++'function doAddInstructor(){var d={name:document.getElementById("newInstrName").value.trim(),tz:document.getElementById("newInstrTz").value.trim(),license:document.getElementById("newInstrLicense").value.trim(),phone:document.getElementById("newInstrPhone").value.trim(),email:document.getElementById("newInstrEmail").value.trim(),admin:document.getElementById("newInstrAdmin").checked};if(!d.name||!d.tz){alert("\u05E9\u05DD \u05DE\u05DC\u05D0 \u05D5\u05EA.\u05D6. \u05D4\u05DD \u05E9\u05D3\u05D5\u05EA \u05D7\u05D5\u05D1\u05D4");return;}var btn=event.target.closest("button");withLoading(btn,function(done){google.script.run.withSuccessHandler(function(r){done();if(r.success){showToast(r.message);document.getElementById("addInstrForm").style.display="none";document.getElementById("newInstrName").value="";document.getElementById("newInstrTz").value="";document.getElementById("newInstrLicense").value="";document.getElementById("newInstrPhone").value="";document.getElementById("newInstrEmail").value="";document.getElementById("newInstrAdmin").checked=false;loadInstructorsList();}else{alert(r.message);}}).withFailureHandler(function(e){done();handleAuthError(e);}).addInstructor(loadSession(),d);});}'
 
 +'function showEditInstructor(tz){var inst=null;for(var i=0;i<allInstructorsList.length;i++){if(allInstructorsList[i].tz===tz){inst=allInstructorsList[i];break;}}if(!inst)return;document.getElementById("addInstrForm").style.display="none";document.getElementById("editInstrForm").style.display="block";document.getElementById("editInstrOrigTz").value=inst.tz;document.getElementById("editInstrName").value=inst.name;document.getElementById("editInstrTz").value=inst.tz;document.getElementById("editInstrLicense").value=inst.license||"";document.getElementById("editInstrPhone").value=inst.phone||"";document.getElementById("editInstrEmail").value=inst.email||"";document.getElementById("editInstrAdmin").checked=inst.admin;}'
 
 +'function hideEditInstructor(){document.getElementById("editInstrForm").style.display="none";}'
 
-+'function doEditInstructor(){var origTz=document.getElementById("editInstrOrigTz").value;var d={name:document.getElementById("editInstrName").value.trim(),license:document.getElementById("editInstrLicense").value.trim(),phone:document.getElementById("editInstrPhone").value.trim(),email:document.getElementById("editInstrEmail").value.trim(),admin:document.getElementById("editInstrAdmin").checked};if(!d.name){alert("\u05E9\u05DD \u05DE\u05DC\u05D0 \u05D4\u05D5\u05D0 \u05E9\u05D3\u05D4 \u05D7\u05D5\u05D1\u05D4");return;}var btn=event.target.closest("button");withLoading(btn,function(done){google.script.run.withSuccessHandler(function(r){done();if(r.success){showToast(r.message);document.getElementById("editInstrForm").style.display="none";loadInstructorsList();}else{alert(r.message);}}).withFailureHandler(function(e){done();alert("\u05E9\u05D2\u05D9\u05D0\u05D4: "+e.message);}).updateInstructor(origTz,d);});}'
++'function doEditInstructor(){var origTz=document.getElementById("editInstrOrigTz").value;var d={name:document.getElementById("editInstrName").value.trim(),license:document.getElementById("editInstrLicense").value.trim(),phone:document.getElementById("editInstrPhone").value.trim(),email:document.getElementById("editInstrEmail").value.trim(),admin:document.getElementById("editInstrAdmin").checked};if(!d.name){alert("\u05E9\u05DD \u05DE\u05DC\u05D0 \u05D4\u05D5\u05D0 \u05E9\u05D3\u05D4 \u05D7\u05D5\u05D1\u05D4");return;}var btn=event.target.closest("button");withLoading(btn,function(done){google.script.run.withSuccessHandler(function(r){done();if(r.success){showToast(r.message);document.getElementById("editInstrForm").style.display="none";loadInstructorsList();}else{alert(r.message);}}).withFailureHandler(function(e){done();handleAuthError(e);}).updateInstructor(loadSession(),origTz,d);});}'
 
-+'function doSearchTrainees(){var q=document.getElementById("traineeSearch").value.trim();if(!q){alert("\u05D4\u05D6\u05DF \u05DE\u05D9\u05DC\u05EA \u05D7\u05D9\u05E4\u05D5\u05E9");return;}document.getElementById("traineeCard").style.display="none";var btn=event.target.closest("button");withLoading(btn,function(done){google.script.run.withSuccessHandler(function(results){done();var c=document.getElementById("traineeResults");if(!results||results.length===0){c.innerHTML="<div class=\\"active-empty\\">\u05DC\u05D0 \u05E0\u05DE\u05E6\u05D0\u05D5 \u05EA\u05D5\u05E6\u05D0\u05D5\u05EA</div>";return;}var h="";for(var i=0;i<results.length;i++){var r=results[i];var badge=r.status==="\u05E4\u05E2\u05D9\u05DC"?"badge-active":r.status==="\u05DE\u05D5\u05E9\u05E2\u05D4"?"badge-suspended":"badge-inactive";h+="<div class=\\"active-item\\" style=\\"cursor:pointer\\" onclick=\\"selectTrainee(\'"+r.tz+"\')\\">"+"<div class=\\"item-info\\"><span class=\\"item-date\\">"+r.name+"</span><span class=\\"item-instructor\\">"+r.tz+"</span><span class=\\"item-notes\\">"+r.phone+"</span></div>"+"<span class=\\""+badge+"\\">"+r.status+"</span></div>";}c.innerHTML=h;}).withFailureHandler(function(e){done();document.getElementById("traineeResults").innerHTML="<div class=\\"active-empty\\">\u05E9\u05D2\u05D9\u05D0\u05D4: "+e.message+"</div>";}).searchTrainees(q);});}'
++'function doSearchTrainees(){var q=document.getElementById("traineeSearch").value.trim();if(!q){alert("\u05D4\u05D6\u05DF \u05DE\u05D9\u05DC\u05EA \u05D7\u05D9\u05E4\u05D5\u05E9");return;}document.getElementById("traineeCard").style.display="none";var btn=event.target.closest("button");withLoading(btn,function(done){google.script.run.withSuccessHandler(function(results){done();var c=document.getElementById("traineeResults");if(!results||results.length===0){c.innerHTML="<div class=\\"active-empty\\">\u05DC\u05D0 \u05E0\u05DE\u05E6\u05D0\u05D5 \u05EA\u05D5\u05E6\u05D0\u05D5\u05EA</div>";return;}var h="";for(var i=0;i<results.length;i++){var r=results[i];var badge=r.status==="\u05E4\u05E2\u05D9\u05DC"?"badge-active":r.status==="\u05DE\u05D5\u05E9\u05E2\u05D4"?"badge-suspended":"badge-inactive";h+="<div class=\\"active-item\\" style=\\"cursor:pointer\\" onclick=\\"selectTrainee(\'"+r.tz+"\')\\">"+"<div class=\\"item-info\\"><span class=\\"item-date\\">"+r.name+"</span><span class=\\"item-instructor\\">"+r.tz+"</span><span class=\\"item-notes\\">"+r.phone+"</span></div>"+"<span class=\\""+badge+"\\">"+r.status+"</span></div>";}c.innerHTML=h;}).withFailureHandler(function(e){done();handleAuthError(e);}).searchTrainees(loadSession(),q);});}'
 
 +'document.getElementById("traineeSearch").addEventListener("keydown",function(e){if(e.key==="Enter")doSearchTrainees()});'
 
-+'function selectTrainee(tz){document.getElementById("traineeResults").innerHTML="";google.script.run.withSuccessHandler(function(status){google.script.run.withSuccessHandler(function(inst){var card=document.getElementById("traineeCard");card.style.display="block";var name=inst.name||tz;document.getElementById("traineeCardName").textContent=name;document.getElementById("traineeCardTz").textContent=inst.tz||tz;document.getElementById("traineeCardPhone").textContent=inst.phone||"-";document.getElementById("traineeEditLink").href=WEBAPP_URL+"?action=register&tz="+encodeURIComponent(tz)+"&admin=1";card.setAttribute("data-tz",tz);var statusBadge=status.status==="\u05E4\u05E2\u05D9\u05DC"?"badge-active":status.status==="\u05DE\u05D5\u05E9\u05E2\u05D4"?"badge-suspended":"badge-inactive";document.getElementById("traineeCardStatus").innerHTML="<span class=\\""+statusBadge+"\\">"+status.status+"</span>";document.getElementById("statusSelect").value=status.status||"\u05E4\u05E2\u05D9\u05DC";onStatusChange();if(status.reason){document.getElementById("reasonText").value=status.reason;}}).withFailureHandler(function(e){alert("\u05E9\u05D2\u05D9\u05D0\u05D4: "+e.message);}).getVerifiedTraineeData(tz);}).withFailureHandler(function(e){alert("\u05E9\u05D2\u05D9\u05D0\u05D4: "+e.message);}).getTraineeStatusData(tz);}'
++'function selectTrainee(tz){document.getElementById("traineeResults").innerHTML="";google.script.run.withSuccessHandler(function(status){google.script.run.withSuccessHandler(function(inst){var card=document.getElementById("traineeCard");card.style.display="block";var name=inst.name||tz;document.getElementById("traineeCardName").textContent=name;document.getElementById("traineeCardTz").textContent=inst.tz||tz;document.getElementById("traineeCardPhone").textContent=inst.phone||"-";document.getElementById("traineeEditLink").setAttribute("data-tz",tz);card.setAttribute("data-tz",tz);var statusBadge=status.status==="\u05E4\u05E2\u05D9\u05DC"?"badge-active":status.status==="\u05DE\u05D5\u05E9\u05E2\u05D4"?"badge-suspended":"badge-inactive";document.getElementById("traineeCardStatus").innerHTML="<span class=\\""+statusBadge+"\\">"+status.status+"</span>";document.getElementById("statusSelect").value=status.status||"\u05E4\u05E2\u05D9\u05DC";onStatusChange();if(status.reason){document.getElementById("reasonText").value=status.reason;}}).withFailureHandler(handleAuthError).getVerifiedTraineeData(loadSession(),tz);}).withFailureHandler(function(e){alert("\u05E9\u05D2\u05D9\u05D0\u05D4: "+e.message);}).getTraineeStatusData(tz);}'
 
 +'function onStatusChange(){var v=document.getElementById("statusSelect").value;var show=v==="\u05DE\u05D5\u05E9\u05E2\u05D4";document.getElementById("reasonField").style.display=show?"block":"none";document.getElementById("reasonTextFieldWrap").style.display=show?"block":"none";}'
 
-+'function loadSuspensionReasons(){google.script.run.withSuccessHandler(function(reasons){var sel=document.getElementById("reasonSelect");while(sel.options.length>1)sel.remove(1);for(var i=0;i<reasons.length;i++){var o=document.createElement("option");o.value=reasons[i];o.textContent=reasons[i];sel.appendChild(o);}}).getSuspensionReasons()}'
+// v6.1.1 — Open trainee edit via admin-edit token
++'function openTraineeEdit(){var tz=document.getElementById("traineeEditLink").getAttribute("data-tz");if(!tz)return;var btn=document.getElementById("traineeEditLink");withLoading(btn,function(done){google.script.run.withSuccessHandler(function(editToken){done();window.open(WEBAPP_URL+"?action=register&tz="+encodeURIComponent(tz)+"&admin=1&editToken="+encodeURIComponent(editToken),"_blank");}).withFailureHandler(function(e){done();handleAuthError(e);}).issueAdminEditToken(loadSession());});}'
+
++'function loadSuspensionReasons(){google.script.run.withSuccessHandler(function(reasons){var sel=document.getElementById("reasonSelect");while(sel.options.length>1)sel.remove(1);for(var i=0;i<reasons.length;i++){var o=document.createElement("option");o.value=reasons[i];o.textContent=reasons[i];sel.appendChild(o);}}).withFailureHandler(handleAuthError).getSuspensionReasons(loadSession())}'
 
 +'function onReasonSelect(){var v=document.getElementById("reasonSelect").value;if(v){document.getElementById("reasonText").value=v;}}'
 
-+'function doUpdateStatus(){var card=document.getElementById("traineeCard");var tz=card.getAttribute("data-tz");var status=document.getElementById("statusSelect").value;var reason=status==="\u05DE\u05D5\u05E9\u05E2\u05D4"?document.getElementById("reasonText").value.trim():"";if(status==="\u05DE\u05D5\u05E9\u05E2\u05D4"&&!reason){alert("\u05D9\u05E9 \u05DC\u05D4\u05D6\u05D9\u05DF \u05E1\u05D9\u05D1\u05EA \u05D4\u05E9\u05E2\u05D9\u05D4");return;}var btn=event.target.closest("button");withLoading(btn,function(done){google.script.run.withSuccessHandler(function(r){done();if(r.success){showToast(r.message);selectTrainee(tz);loadSuspendedList();}else{alert(r.message);}}).withFailureHandler(function(e){done();alert("\u05E9\u05D2\u05D9\u05D0\u05D4: "+e.message);}).updateTraineeStatus(tz,status,reason);});}'
++'function doUpdateStatus(){var card=document.getElementById("traineeCard");var tz=card.getAttribute("data-tz");var status=document.getElementById("statusSelect").value;var reason=status==="\u05DE\u05D5\u05E9\u05E2\u05D4"?document.getElementById("reasonText").value.trim():"";if(status==="\u05DE\u05D5\u05E9\u05E2\u05D4"&&!reason){alert("\u05D9\u05E9 \u05DC\u05D4\u05D6\u05D9\u05DF \u05E1\u05D9\u05D1\u05EA \u05D4\u05E9\u05E2\u05D9\u05D4");return;}var btn=event.target.closest("button");withLoading(btn,function(done){google.script.run.withSuccessHandler(function(r){done();if(r.success){showToast(r.message);selectTrainee(tz);loadSuspendedList();}else{alert(r.message);}}).withFailureHandler(function(e){done();handleAuthError(e);}).updateTraineeStatus(loadSession(),tz,status,reason);});}'
 
 +'var allReasonsList=[];var suspendedTrainees=[];'
 
-+'function loadSuspendedList(){google.script.run.withSuccessHandler(function(list){suspendedTrainees=list||[];var c=document.getElementById("suspendedList");if(suspendedTrainees.length===0){c.innerHTML="<div class=\\"active-empty\\" style=\\"color:#4ade80\\">\u2705 \u05D0\u05D9\u05DF \u05DE\u05EA\u05D0\u05DE\u05E0\u05D9\u05DD \u05DE\u05D5\u05E9\u05E2\u05D9\u05DD</div>";return;}var h="";for(var i=0;i<suspendedTrainees.length;i++){var t=suspendedTrainees[i];h+="<div class=\\"active-item\\"><div class=\\"item-info\\"><span class=\\"item-date\\">"+t.name+"</span><span class=\\"item-instructor\\">"+t.tz+"</span><span class=\\"item-notes\\" style=\\"color:#fbbf24\\">"+(t.reason||"\u05DC\u05D0 \u05E6\u05D5\u05D9\u05E0\u05D4")+"</span></div><button class=\\"btn btn-small\\" style=\\"background:#16a34a;color:#fff\\" data-idx=\\""+i+"\\" onclick=\\"doResolveSuspension(this.dataset.idx,this)\\">\u05D4\u05E1\u05E8 \u05D4\u05E9\u05E2\u05D9\u05D4</button></div>";}c.innerHTML=h;}).withFailureHandler(function(e){document.getElementById("suspendedList").innerHTML="<div class=\\"active-empty\\">\u05E9\u05D2\u05D9\u05D0\u05D4: "+e.message+"</div>";}).getSuspendedTrainees()}'
++'function loadSuspendedList(){google.script.run.withSuccessHandler(function(list){suspendedTrainees=list||[];var c=document.getElementById("suspendedList");if(suspendedTrainees.length===0){c.innerHTML="<div class=\\"active-empty\\" style=\\"color:#4ade80\\">\u2705 \u05D0\u05D9\u05DF \u05DE\u05EA\u05D0\u05DE\u05E0\u05D9\u05DD \u05DE\u05D5\u05E9\u05E2\u05D9\u05DD</div>";return;}var h="";for(var i=0;i<suspendedTrainees.length;i++){var t=suspendedTrainees[i];h+="<div class=\\"active-item\\"><div class=\\"item-info\\"><span class=\\"item-date\\">"+t.name+"</span><span class=\\"item-instructor\\">"+t.tz+"</span><span class=\\"item-notes\\" style=\\"color:#fbbf24\\">"+(t.reason||"\u05DC\u05D0 \u05E6\u05D5\u05D9\u05E0\u05D4")+"</span></div><button class=\\"btn btn-small\\" style=\\"background:#16a34a;color:#fff\\" data-idx=\\""+i+"\\" onclick=\\"doResolveSuspension(this.dataset.idx,this)\\">\u05D4\u05E1\u05E8 \u05D4\u05E9\u05E2\u05D9\u05D4</button></div>";}c.innerHTML=h;}).withFailureHandler(handleAuthError).getSuspendedTrainees(loadSession())}'
 
-+'function doResolveSuspension(idx,btn){var t=suspendedTrainees[idx];if(!t)return;if(!confirm("\u05D4\u05E1\u05E8 \u05D4\u05E9\u05E2\u05D9\u05D4 \u05E2\u05D1\u05D5\u05E8 "+t.name+"?")){return;}withLoading(btn,function(done){google.script.run.withSuccessHandler(function(r){done();if(r.success){showToast(r.message);loadSuspendedList();}else{alert(r.message);}}).withFailureHandler(function(e){done();alert("\u05E9\u05D2\u05D9\u05D0\u05D4: "+e.message);}).updateTraineeStatus(t.tz,"\u05E4\u05E2\u05D9\u05DC","");});}'
++'function doResolveSuspension(idx,btn){var t=suspendedTrainees[idx];if(!t)return;if(!confirm("\u05D4\u05E1\u05E8 \u05D4\u05E9\u05E2\u05D9\u05D4 \u05E2\u05D1\u05D5\u05E8 "+t.name+"?")){return;}withLoading(btn,function(done){google.script.run.withSuccessHandler(function(r){done();if(r.success){showToast(r.message);loadSuspendedList();}else{alert(r.message);}}).withFailureHandler(function(e){done();handleAuthError(e);}).updateTraineeStatus(loadSession(),t.tz,"\u05E4\u05E2\u05D9\u05DC","");});}'
 
 +'function toggleReasonsPanel(){var p=document.getElementById("reasonsPanel");if(p.style.display==="none"){p.style.display="block";loadReasonsList();}else{p.style.display="none";}}'
 
-+'function loadReasonsList(){google.script.run.withSuccessHandler(function(reasons){allReasonsList=reasons||[];var c=document.getElementById("reasonsList");if(allReasonsList.length===0){c.innerHTML="<div class=\\"active-empty\\">\u05D0\u05D9\u05DF \u05E1\u05D9\u05D1\u05D5\u05EA \u05DE\u05D5\u05D2\u05D3\u05E8\u05D5\u05EA</div>";return;}var h="";for(var i=0;i<allReasonsList.length;i++){var r=allReasonsList[i];var badge=r.active?"badge-active":"badge-inactive";var label=r.active?"\u05E4\u05E2\u05D9\u05DC":"\u05DC\u05D0 \u05E4\u05E2\u05D9\u05DC";var btnLabel=r.active?"\u05D4\u05E9\u05D1\u05EA":"\u05D4\u05E4\u05E2\u05DC";var btnStyle=r.active?"background:#64748b;color:#fff":"background:#16a34a;color:#fff";h+="<div class=\\"active-item\\"><div class=\\"item-info\\"><span class=\\"item-date\\">"+r.reason+"</span><span class=\\""+badge+"\\">"+label+"</span></div><button class=\\"btn btn-small\\" style=\\""+btnStyle+"\\" data-idx=\\""+i+"\\" onclick=\\"doToggleReason(this.dataset.idx,this)\\">"+btnLabel+"</button></div>";}c.innerHTML=h;}).withFailureHandler(function(e){document.getElementById("reasonsList").innerHTML="<div class=\\"active-empty\\">\u05E9\u05D2\u05D9\u05D0\u05D4: "+e.message+"</div>";}).getAllSuspensionReasons()}'
++'function loadReasonsList(){google.script.run.withSuccessHandler(function(reasons){allReasonsList=reasons||[];var c=document.getElementById("reasonsList");if(allReasonsList.length===0){c.innerHTML="<div class=\\"active-empty\\">\u05D0\u05D9\u05DF \u05E1\u05D9\u05D1\u05D5\u05EA \u05DE\u05D5\u05D2\u05D3\u05E8\u05D5\u05EA</div>";return;}var h="";for(var i=0;i<allReasonsList.length;i++){var r=allReasonsList[i];var badge=r.active?"badge-active":"badge-inactive";var label=r.active?"\u05E4\u05E2\u05D9\u05DC":"\u05DC\u05D0 \u05E4\u05E2\u05D9\u05DC";var btnLabel=r.active?"\u05D4\u05E9\u05D1\u05EA":"\u05D4\u05E4\u05E2\u05DC";var btnStyle=r.active?"background:#64748b;color:#fff":"background:#16a34a;color:#fff";h+="<div class=\\"active-item\\"><div class=\\"item-info\\"><span class=\\"item-date\\">"+r.reason+"</span><span class=\\""+badge+"\\">"+label+"</span></div><button class=\\"btn btn-small\\" style=\\""+btnStyle+"\\" data-idx=\\""+i+"\\" onclick=\\"doToggleReason(this.dataset.idx,this)\\">"+btnLabel+"</button></div>";}c.innerHTML=h;}).withFailureHandler(handleAuthError).getAllSuspensionReasons(loadSession())}'
 
 +'function toggleAddReason(){var f=document.getElementById("addReasonForm");f.style.display=f.style.display==="none"?"block":"none";}'
 
-+'function doAddReason(){var text=document.getElementById("newReasonText").value.trim();if(!text){alert("\u05D9\u05E9 \u05DC\u05D4\u05D6\u05D9\u05DF \u05E1\u05D9\u05D1\u05D4");return;}var btn=event.target.closest("button");withLoading(btn,function(done){google.script.run.withSuccessHandler(function(r){done();if(r.success){showToast(r.message);document.getElementById("newReasonText").value="";document.getElementById("addReasonForm").style.display="none";loadReasonsList();loadSuspensionReasons();}else{alert(r.message);}}).withFailureHandler(function(e){done();alert("\u05E9\u05D2\u05D9\u05D0\u05D4: "+e.message);}).addSuspensionReason(text);});}'
++'function doAddReason(){var text=document.getElementById("newReasonText").value.trim();if(!text){alert("\u05D9\u05E9 \u05DC\u05D4\u05D6\u05D9\u05DF \u05E1\u05D9\u05D1\u05D4");return;}var btn=event.target.closest("button");withLoading(btn,function(done){google.script.run.withSuccessHandler(function(r){done();if(r.success){showToast(r.message);document.getElementById("newReasonText").value="";document.getElementById("addReasonForm").style.display="none";loadReasonsList();loadSuspensionReasons();}else{alert(r.message);}}).withFailureHandler(function(e){done();handleAuthError(e);}).addSuspensionReason(loadSession(),text);});}'
 
-+'function doToggleReason(idx,btn){var r=allReasonsList[idx];if(!r)return;withLoading(btn,function(done){google.script.run.withSuccessHandler(function(res){done();if(res.success){showToast(res.message);loadReasonsList();loadSuspensionReasons();}else{alert(res.message);}}).withFailureHandler(function(e){done();alert("\u05E9\u05D2\u05D9\u05D0\u05D4: "+e.message);}).toggleSuspensionReason(r.reason,!r.active);});}'
++'function doToggleReason(idx,btn){var r=allReasonsList[idx];if(!r)return;withLoading(btn,function(done){google.script.run.withSuccessHandler(function(res){done();if(res.success){showToast(res.message);loadReasonsList();loadSuspensionReasons();}else{alert(res.message);}}).withFailureHandler(function(e){done();handleAuthError(e);}).toggleSuspensionReason(loadSession(),r.reason,!r.active);});}'
 
-+'function loadOwnerInstrSelect(){google.script.run.withSuccessHandler(function(list){var sel=document.getElementById("ownerInstrSelect");for(var i=0;i<list.length;i++){var o=document.createElement("option");o.value=list[i].tz;o.textContent=list[i].name+" ("+list[i].tz+")";sel.appendChild(o);}}).getAllInstructors();}'
++'function loadOwnerInstrSelect(){google.script.run.withSuccessHandler(function(list){var sel=document.getElementById("ownerInstrSelect");for(var i=0;i<list.length;i++){var o=document.createElement("option");o.value=list[i].tz;o.textContent=list[i].name+" ("+list[i].tz+")";sel.appendChild(o);}}).withFailureHandler(handleAuthError).getAllInstructors(loadSession());}'
 
 +'document.getElementById("ownerInstrSelect").addEventListener("change",function(){var tz=this.value;if(!tz){document.getElementById("ownerSessionsArea").style.display="none";return;}google.script.run.withSuccessHandler(function(sessions){ownerAllSessions=sessions;ownerCurrentFilter="all";ownerRenderSessions();document.getElementById("ownerSessionsArea").style.display="block";}).withFailureHandler(function(e){alert("\u05E9\u05D2\u05D9\u05D0\u05D4: "+e.message);}).getInstructorSessions(tz);});'
 

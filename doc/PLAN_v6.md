@@ -1,7 +1,8 @@
 # Implementation Plan — v6: Session Persistence + API Security
 
 **Created: 2026-04-18**
-**Version Range: v6.0.0 – v6.0.5**
+**Version format: v6.{phase}.{deployment}** — phase maps to implementation phase, deployment increments per deploy within that phase.
+**Version Range: v6.1.x – v6.4.x**
 
 ---
 
@@ -62,9 +63,9 @@ This is rolled out **role by role** — admin first, instructors next, trainees 
 
 ### Role-by-role rollout
 
-- **Admin first** (v6.0.1) — smallest user base, most complex dashboard, highest value from persistence. Also the owner — can debug issues before they affect others.
-- **Instructor next** (v6.0.2) — medium user base, biggest UX improvement (dashboard used throughout training day).
-- **Trainees last** (v6.0.3–v6.0.4) — largest user base, simplest pages, lowest risk.
+- **Admin first** (v6.1.x) — smallest user base, most complex dashboard, highest value from persistence. Also the owner — can debug issues before they affect others.
+- **Instructor next** (v6.2.x) — medium user base, biggest UX improvement (dashboard used throughout training day).
+- **Trainees last** (v6.3.x–v6.4.x) — largest user base, simplest pages, lowest risk.
 
 Each version is self-contained and deployable. If a phase has issues, earlier phases continue working.
 
@@ -122,73 +123,62 @@ function handleAuthError(error) {
 | `requestInstructorOTP(tz)` | Sends OTP to instructor |
 | `verifyInstructorOTP(tz, code)` | Validates instructor OTP |
 | `validateUserSession(token)` | Token check — returns valid/invalid, no sensitive data |
-| `createUserSession(tz, role)` | Called internally after auth success |
 | `destroyUserSession(token)` | Logout — removes token |
+
+> **Note:** `_createUserSession` is private (underscore prefix) — not callable from `google.script.run`. Session tokens are created server-side inside `checkAdminAuth` / `verifyAdminOTP` (and later instructor equivalents) and returned in the auth response.
 
 **Gated — any valid token** (trainee, instructor, or admin):
 
 | Function | Current risk | Gated in |
 |----------|-------------|----------|
-| `submitPollResponse(token, ...)` | Anyone can submit fake poll responses | v6.0.3 |
-| `getActiveSessions(token)` | Leaks session dates/instructor names | v6.0.3 |
-| `getSessionResponseCount(token, sessionId)` | Minor — just a count | v6.0.3 |
+| `submitPollResponse(token, ...)` | Anyone can submit fake poll responses | v6.3 |
+| `getActiveSessions(token)` | Leaks session dates/instructor names | v6.3 |
+| `getSessionResponseCount(token, sessionId)` | Minor — just a count | v6.3 |
 
 **Gated — instructor or admin token**:
 
 | Function | Current risk | Gated in |
 |----------|-------------|----------|
-| `getInstructorData(token, tz)` | Exposes name, email, phone, admin flag | v6.0.2 |
-| `getAllInstructors(token)` | Exposes all instructors with emails | v6.0.2 |
-| `getInstructorSessions(token, tz)` | Exposes session list | v6.0.2 |
-| `createSession(token, ...)` | Anyone could create fake sessions | v6.0.2 |
-| `closeSession(token, sessionId)` | Anyone could close sessions | v6.0.2 |
-| `getSessionResponses(token, sessionId)` | Exposes trainee attendance data | v6.0.2 |
-| `updateSessionResponse(token, ...)` | Anyone could edit attendance | v6.0.2 |
-| `issuePrintToken(token, tz, sessionId)` | Could generate print access | v6.0.2 |
+| `getInstructorData(token, tz)` | Exposes name, email, phone, admin flag | v6.2 |
+| `getAllInstructors(token)` | Exposes all instructors with emails | v6.2 |
+| `getInstructorSessions(token, tz)` | Exposes session list | v6.2 |
+| `createSession(token, ...)` | Anyone could create fake sessions | v6.2 |
+| `closeSession(token, sessionId)` | Anyone could close sessions | v6.2 |
+| `getSessionResponses(token, sessionId)` | Exposes trainee attendance data | v6.2 |
+| `updateSessionResponse(token, ...)` | Anyone could edit attendance | v6.2 |
+| `issuePrintToken(token, tz, sessionId)` | Could generate print access | v6.2 |
 
 **Gated — admin token only**:
 
 | Function | Current risk | Gated in |
 |----------|-------------|----------|
-| `getTraineeData(token)` | Exposes ALL trainees (names, TZ, phones, tools) | v6.0.1 |
-| `getVerifiedTraineeData(token, tz)` | Bypasses OTP — returns full data for any TZ | v6.0.1 |
-| `updateTraineeStatus(token, ...)` | Anyone could suspend trainees | v6.0.1 |
-| `getSuspendedTrainees(token)` | Exposes suspended trainee list | v6.0.1 |
-| `resolveTraineeSuspension(token, tz)` | Anyone could un-suspend | v6.0.1 |
-| `addInstructor(token, ...)` | Anyone could add instructors | v6.0.1 |
-| `updateInstructor(token, ...)` | Anyone could modify instructors | v6.0.1 |
-| `removeInstructor(token, tz)` | Anyone could delete instructors | v6.0.1 |
+| `getTraineeData(token)` | Exposes ALL trainees (names, TZ, phones, tools) | v6.1 |
+| `getVerifiedTraineeData(token, tz)` | Bypasses OTP — returns full data for any TZ | v6.1 |
+| `updateTraineeStatus(token, ...)` | Anyone could suspend/unsuspend trainees | v6.1 |
+| `getSuspendedTrainees(token)` | Exposes suspended trainee list | v6.1 |
+| `searchTrainees(token, query)` | Exposes trainee search results | v6.1 |
+| `getSuspensionReasons(token)` | Returns active reason strings for suspend dropdown | v6.1 |
+| `addInstructor(token, ...)` | Anyone could add instructors | v6.1 |
+| `updateInstructor(token, ...)` | Anyone could modify instructors | v6.1 |
+| `getAllSuspensionReasons(token)` | Exposes full reasons list (active + inactive) | v6.1 |
+| `addSuspensionReason(token, reason)` | Anyone could add reasons | v6.1 |
+| `toggleSuspensionReason(token, ...)` | Anyone could toggle reasons | v6.1 |
 
-**Gated — owner token only** (admin token + `isOwner` check):
-
-| Function | Current risk | Gated in |
-|----------|-------------|----------|
-| `getSuspensionReasons(token)` | Minor — just reason strings | v6.0.1 |
-| `getActiveSuspensionReasons(token)` | Same | v6.0.1 |
-| `addSuspensionReason(token, reason)` | Anyone could add reasons | v6.0.1 |
-| `toggleSuspensionReason(token, ...)` | Anyone could toggle reasons | v6.0.1 |
-
-### How `requireAuth` works for owner-only functions
-
-```javascript
-function addSuspensionReason(token, reason) {
-  var session = requireAuth(token, ['admin']);
-  if (!session.isOwner) throw new Error('הפעולה זמינה לבעלים בלבד');
-  // ... existing logic
-}
-```
+> **Note:** `resolveTraineeSuspension` and `removeInstructor` were originally planned here but do not exist in the codebase. Un-suspending is done via `updateTraineeStatus(token, tz, 'פעיל', '')`. Instructor removal is not yet implemented.
+>
+> **Design note:** All suspension management (reasons CRUD, suspend/unsuspend trainees) is admin-level — any admin can perform these actions, not just the owner.
 
 ---
 
 ## Implementation Phases
 
-### Phase 0: Foundation (v6.0.0)
+### Phase 0: Foundation (shipped with Phase 1)
 
 **Server-side** — data.gs:
 
 ```javascript
 // Session management
-function createUserSession(tz, role) { ... }
+function _createUserSession(tz, role, name) { ... }  // private — called server-side after auth success
 function validateUserSession(token) { ... }
 function destroyUserSession(token) { ... }
 function requireAuth(token, allowedRoles) { ... }
@@ -222,16 +212,17 @@ function getSessionScript() {
 
 ---
 
-### Phase 1: Admin Dashboard (v6.0.1)
+### Phase 1: Admin Dashboard (v6.1.x)
 
 **Session persistence:**
 
-On successful admin login (TZ + OTP/Google verified):
+On successful admin login (TZ + OTP/Google verified), the server creates the session token inside `checkAdminAuth` / `verifyAdminOTP` and returns it in the response:
 ```javascript
-// In doAdminLogin success path:
-google.script.run.withSuccessHandler(function(token){
-  saveSession(token);
-}).createUserSession(currentAdminTz, 'admin');
+// In doAdminLogin success path (checkAdminAuth returns sessionToken):
+if (auth.sessionToken) saveSession(auth.sessionToken);
+
+// In doVerifyAdminOtp success path (verifyAdminOTP returns sessionToken):
+if (r.sessionToken) saveSession(r.sessionToken);
 ```
 
 On page load — auto-restore:
@@ -285,25 +276,20 @@ google.script.run.withSuccessHandler(...).withFailureHandler(handleAuthError).ge
 | Function | New signature | Role required |
 |----------|--------------|---------------|
 | `getTraineeData` | `getTraineeData(token)` | admin |
-| `getVerifiedTraineeData` | `getVerifiedTraineeData(token, tz)` | admin |
-| `updateTraineeStatus` | `updateTraineeStatus(token, tz, status, reason, date)` | admin |
+| `getVerifiedTraineeData` | `getVerifiedTraineeData(tokenOrEditToken, tz)` | admin (or admin-edit token) |
+| `updateTraineeStatus` | `updateTraineeStatus(token, tz, status, reason)` | admin |
 | `getSuspendedTrainees` | `getSuspendedTrainees(token)` | admin |
-| `resolveTraineeSuspension` | `resolveTraineeSuspension(token, tz)` | admin |
+| `searchTrainees` | `searchTrainees(token, query)` | admin |
+| `getSuspensionReasons` | `getSuspensionReasons(token)` | admin |
 | `addInstructor` | `addInstructor(token, data)` | admin |
 | `updateInstructor` | `updateInstructor(token, data)` | admin |
-| `removeInstructor` | `removeInstructor(token, tz)` | admin |
-| `getSuspensionReasons` | `getSuspensionReasons(token)` | admin (+ isOwner) |
-| `getActiveSuspensionReasons` | `getActiveSuspensionReasons(token)` | admin (+ isOwner) |
-| `addSuspensionReason` | `addSuspensionReason(token, reason)` | admin (+ isOwner) |
-| `toggleSuspensionReason` | `toggleSuspensionReason(token, idx, active)` | admin (+ isOwner) |
+| `getAllSuspensionReasons` | `getAllSuspensionReasons(token)` | admin |
+| `addSuspensionReason` | `addSuspensionReason(token, reason)` | admin |
+| `toggleSuspensionReason` | `toggleSuspensionReason(token, reason, active)` | admin |
 
-**Special handling — `getVerifiedTraineeData`:**
-This function is also called from the register page in admin-edit mode (`?tz=X`). In admin-edit mode, the register page is opened from the admin dashboard, which has a valid admin token in sessionStorage. So passing `loadSession()` works — the token carries over because it's the same origin (even in a new tab opened via `target="_blank"` if using `window.open` within the same session... wait, `target="_blank"` creates a new tab with empty sessionStorage).
+**Special handling — `getVerifiedTraineeData` (admin-edit token):**
 
-**Correction:** Admin edit mode opens in a new tab → empty sessionStorage → no token. Two options:
-1. Pass the token via URL parameter (`?tz=X&token=Y`) — but we said no tokens in URLs.
-2. Keep `getVerifiedTraineeData` callable without token ONLY when `adminMode` is true AND a valid admin-edit-mode token exists.
-3. **Simplest:** In admin-edit mode, the register page doesn't need a session token — the `?tz=X` parameter already signals admin intent, and `getVerifiedTraineeData` is only called from that code path. We gate it behind a separate short-lived admin-edit token (like the existing print token pattern): the admin dashboard creates a 60-second `admin-edit-token` in CacheService, appends it to the URL, and the register page validates it once on load.
+Admin edit mode opens the register page in a new tab → empty `sessionStorage` → no session token. Passing the session token via URL would be insecure. Instead, we use a short-lived admin-edit token (same pattern as the existing print token): the admin dashboard requests a 2-minute one-time-use edit token from the server, passes it in the URL, and the register page validates it via `getVerifiedTraineeData(editToken, tz)` with dual-token logic.
 
 ```javascript
 // Admin dashboard — when clicking "edit trainee":
@@ -352,7 +338,7 @@ function getVerifiedTraineeData(tokenOrEditToken, tz) {
 
 ---
 
-### Phase 2: Instructor Dashboard (v6.0.2)
+### Phase 2: Instructor Dashboard (v6.2.x)
 
 **Session persistence:**
 
@@ -443,7 +429,7 @@ This way, the unauthenticated login flow only gets the instructor's name (needed
 
 ---
 
-### Phase 3: Poll Page (v6.0.3)
+### Phase 3: Poll Page (v6.3.x)
 
 **Session persistence:**
 
@@ -499,7 +485,7 @@ Logout link (subtle, below form).
 
 ---
 
-### Phase 4: Register Page (v6.0.4)
+### Phase 4: Register Page (v6.4.x)
 
 **Session persistence:**
 
@@ -570,11 +556,11 @@ Logout link (subtle, below form).
 
 ---
 
-### Phase 5: Cleanup & Version Bump (v6.0.5)
+### Phase 5: Cleanup & Version Bump (v6.5.x)
 
 - Verify all functions are gated according to access matrix
 - Add `withFailureHandler(handleAuthError)` to any remaining `google.script.run` calls
-- Bump all .gs file headers to v6.0.5
+- Bump all .gs file headers to v6.5.0
 - Update documentation (DESIGN.md, ROADMAP.md, GUI_GUIDELINES.md)
 - Update manuals with logout button and refresh behavior
 
@@ -582,14 +568,16 @@ Logout link (subtle, below form).
 
 ## Complete Version Sequence
 
+Version format: **v6.{phase}.{deployment}** — phase = implementation phase, deployment = increments per deploy within that phase.
+
 | Version | Scope | What ships |
 |---------|-------|-----------|
-| v6.0.0 | Foundation | `createUserSession`, `validateUserSession`, `destroyUserSession`, `requireAuth`, `getSessionScript()`, config constants. No behavioral changes yet. |
-| v6.0.1 | Admin | Admin session persistence + logout + all admin/owner function gating (~12 functions). Admin edit token for register page. |
-| v6.0.2 | Instructor | Instructor session persistence + logout + instructor function gating (~8 functions). `getInstructorData` split (limited data without token). |
-| v6.0.3 | Poll | Poll session persistence + logout + trainee-level function gating (~3 functions). |
-| v6.0.4 | Register | Register session persistence + logout + `getTraineeDataBySession` for safe self-data access. |
-| v6.0.5 | Cleanup | Final audit, version bump, documentation updates, manual updates. |
+| v6.1.0 | Admin (initial) | Foundation (`_createUserSession`, `validateUserSession`, `destroyUserSession`, `requireAuth`, `getSessionScript()`, config constants) + Admin session persistence + logout + all admin function gating (~12 functions) + admin edit token for register page. |
+| v6.1.1 | Admin (fix) | Suspension management opened to all admins (removed isOwner gate). Enter key handler on admin TZ + OTP inputs. Button selector fix for loading state. |
+| v6.2.x | Instructor | Instructor session persistence + logout + instructor function gating (~8 functions). `getInstructorData` split (limited data without token). |
+| v6.3.x | Poll | Poll session persistence + logout + trainee-level function gating (~3 functions). |
+| v6.4.x | Register | Register session persistence + logout + `getTraineeDataBySession` for safe self-data access. |
+| v6.5.x | Cleanup | Final audit, documentation updates, manual updates. |
 
 ---
 
@@ -616,13 +604,13 @@ Files NOT changed: setup.gs, logo.gs, backup.gs.
 5. **Don't add session tokens to URL parameters** — exception: admin-edit token (short-lived, one-time).
 6. **Don't modify print page flows** — print tokens have their own mechanism.
 7. **Don't gate public auth functions** — `lookupByTZ`, `requestOTP`, `verifyOTP`, etc. must remain callable without tokens.
-8. **Don't break backward compatibility mid-rollout** — each phase must leave ungated pages still working. For example, after v6.0.1 gates admin functions, the instructor page (not yet updated) must still be able to call `getAllInstructors` — so we use a transition approach: functions accept token as optional param during rollout, and enforce it only after all callers are updated.
+8. **Don't break backward compatibility mid-rollout** — each phase must leave ungated pages still working. For example, after v6.1.x gates admin functions, the instructor page (not yet updated) must still be able to call `getAllInstructors` — so we use a transition approach: functions accept token as optional param during rollout, and enforce it only after all callers are updated.
 
 ### Backward Compatibility During Rollout
 
-**Critical:** Between v6.0.1 and v6.0.2, the instructor page doesn't pass tokens yet, but `getAllInstructors` is already gated in v6.0.1. This would break the instructor page.
+**Critical:** Between v6.1.x and v6.2.x, the instructor page doesn't pass tokens yet, but `getAllInstructors` is already gated in v6.1.x. This would break the instructor page.
 
-**Solution:** Functions gated in Phase 1 that are also called from the instructor page use a **soft gate** during v6.0.1–v6.0.2:
+**Solution:** Functions gated in Phase 1 that are also called from the instructor page use a **soft gate** during v6.1.x–v6.2.x:
 
 ```javascript
 function getAllInstructors(token) {
@@ -632,7 +620,7 @@ function getAllInstructors(token) {
 }
 ```
 
-In v6.0.2, when the instructor page starts passing tokens, the soft gate becomes a hard gate:
+In v6.2.x, when the instructor page starts passing tokens, the soft gate becomes a hard gate:
 
 ```javascript
 function getAllInstructors(token) {
@@ -641,7 +629,7 @@ function getAllInstructors(token) {
 }
 ```
 
-**Functions needing soft gate in v6.0.1 (called by both admin and instructor pages):**
+**Functions needing soft gate in v6.1.x (called by both admin and instructor pages):**
 - `getAllInstructors`
 - `getInstructorData`
 
@@ -671,13 +659,13 @@ All other admin-gated functions are only called from the admin page, so they can
 
 Each phase has its own test checklist (listed in the phase sections above).
 
-### Cross-Phase Integration Tests (after v6.0.5)
+### Cross-Phase Integration Tests (after v6.5.x)
 
 - [ ] Admin login → open instructor link in same tab → session carries over (both use `imun_session`)
 - [ ] Instructor login → open admin link in new tab → new tab requires own login
 - [ ] Trainee token → try calling admin functions from console → rejected
 - [ ] Instructor token → try calling admin-only functions → rejected
-- [ ] Admin token → try calling owner-only functions without isOwner → rejected
+- [ ] Non-admin token → try calling admin-only functions → rejected
 - [ ] Expire token server-side (reduce TTL) → next `google.script.run` call → `handleAuthError` fires → page reloads to TZ entry
 - [ ] Multiple roles same browser: admin in tab 1, instructor in tab 2 → independent sessions
 - [ ] Mobile: all persistence tests on phone (zoom behavior + token restore)
@@ -693,7 +681,7 @@ Each phase has its own test checklist (listed in the phase sections above).
 
 ---
 
-## Future Considerations (NOT in v6.0.x)
+## Future Considerations (NOT in v6.x)
 
 - **Cross-tab sessions** — `localStorage` with explicit logout. Needs "session active in another tab" handling.
 - **Token refresh / sliding expiry** — extend TTL on each `validateUserSession`. Prevents timeout during active use.
@@ -705,11 +693,11 @@ Each phase has its own test checklist (listed in the phase sections above).
 
 ---
 
-## Documentation Updates (v6.0.5)
+## Documentation Updates (v6.5.x)
 
 | Document | Update |
 |----------|--------|
-| All .gs headers | Bump to v6.0.5 |
+| All .gs headers | Bump to v6.5.0 |
 | config.gs | `SESSION_TTL_SECONDS`, `SESSION_KEY_PREFIX` |
 | doc/DESIGN.md | New functions, updated function signatures, security model section, version |
 | doc/ROADMAP.md | Already updated with v6 plan |
