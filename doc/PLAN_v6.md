@@ -206,9 +206,24 @@ function getSessionScript() {
 }
 ```
 
+**Client-side shared toast notification** — pages.gs (added v6.1.5):
+
+```javascript
+function getToastHtml() {
+  return '<div id="toast" class="toast"></div>';
+}
+
+function getToastScript() {
+  return 'function showToast(msg,type){...}';
+  // type: "success" (green bg), "error" (red bg), or omit for default (dark bg, green text)
+}
+```
+
+Toast CSS is defined once in `getBaseCSS()` — bottom-positioned, opacity transition, `pointer-events:none` when hidden. Replaces 4 per-page duplicates.
+
 **Risk:** None — no callers yet. Foundation is inert until pages use it.
 
-**Est. lines:** config.gs +2, data.gs +60, pages.gs +10. **Total: ~72 lines.**
+**Est. lines:** config.gs +2, data.gs +60, pages.gs +20. **Total: ~82 lines.**
 
 ---
 
@@ -325,7 +340,10 @@ function getVerifiedTraineeData(tokenOrEditToken, tz) {
 **Risk:** Medium — most complex page, but falls back gracefully.
 
 **Testing:**
-- [ ] Admin login → refresh → dashboard restored
+- [x] Admin login → refresh → dashboard restored (verified v6.1.3)
+- [x] Suspension management works for non-owner admins (verified v6.1.1)
+- [x] Enter key works on admin TZ + OTP inputs (verified v6.1.3)
+- [x] Toast notification displays correctly (verified v6.1.5)
 - [ ] Owner panels visible after restore
 - [ ] Zoom removed on restore
 - [ ] Logout clears session
@@ -573,7 +591,11 @@ Version format: **v6.{phase}.{deployment}** — phase = implementation phase, de
 | Version | Scope | What ships |
 |---------|-------|-----------|
 | v6.1.0 | Admin (initial) | Foundation (`_createUserSession`, `validateUserSession`, `destroyUserSession`, `requireAuth`, `getSessionScript()`, config constants) + Admin session persistence + logout + all admin function gating (~12 functions) + admin edit token for register page. |
-| v6.1.1 | Admin (fix) | Suspension management opened to all admins (removed isOwner gate). Enter key handler on admin TZ + OTP inputs. Button selector fix for loading state. |
+| v6.1.1 | Admin (fix) | Suspension management opened to all admins (removed isOwner gate). Enter key handler on admin TZ + OTP inputs. Button selector fix for loading state. Versioning format adopted. |
+| v6.1.2 | Admin (fix) | Semicolons on addEventListener lines (partial fix — IIFE bug still present). |
+| v6.1.3 | Admin (fix) | IIFE missing semicolon fix — the real root cause of admin page JS SyntaxError. All inline JS in `<script>` block was failing to parse. |
+| v6.1.4 | Admin (fix) | Toast notification full-height bug — conflicting `top:20px` (base CSS) + `bottom:24px` (admin CSS) stretched toast to viewport height. Added `top:auto`. |
+| v6.1.5 | All pages (refactor) | Toast consolidation: shared `getToastHtml()` + `getToastScript()` replace 4 duplicate toast divs, 4 duplicate `showToast` functions, and admin CSS override. Unified CSS in `getBaseCSS()` with bottom positioning + opacity transition. |
 | v6.2.x | Instructor | Instructor session persistence + logout + instructor function gating (~8 functions). `getInstructorData` split (limited data without token). |
 | v6.3.x | Poll | Poll session persistence + logout + trainee-level function gating (~3 functions). |
 | v6.4.x | Register | Register session persistence + logout + `getTraineeDataBySession` for safe self-data access. |

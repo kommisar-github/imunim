@@ -131,9 +131,10 @@ Extracted shared CSS into `getBaseCSS()` and zoom into `getZoomScript(desktopMax
 
 ---
 
-## v6 — Session Persistence + API Security (Planned)
+## v6 — Session Persistence + API Security
 
 **Design doc:** `doc/PLAN_v6.md`
+**Version format:** `v6.{phase}.{deployment}` — phase maps to implementation phase, deployment increments per deploy.
 
 ### Problem
 
@@ -148,12 +149,16 @@ Server-side session tokens via `CacheService` (2hr TTL) + `sessionStorage` on cl
 
 | Version | Scope | What ships |
 |---------|-------|-----------|
-| v6.0.0 | Foundation | `createUserSession`, `validateUserSession`, `destroyUserSession`, `requireAuth`, `getSessionScript()`, config constants. No behavioral changes. |
-| v6.0.1 | Admin | Session persistence + logout + 12 admin/owner functions gated + 2 soft-gated. Admin-edit token for register cross-tab. |
-| v6.0.2 | Instructor | Session persistence + logout + 8 instructor functions gated. Soft gates promoted to hard. `getInstructorData` split (limited data pre-login). |
-| v6.0.3 | Poll | Session persistence + logout + 3 trainee-level functions gated. |
-| v6.0.4 | Register | Session persistence + logout + `getTraineeDataBySession` for safe self-data access. |
-| v6.0.5 | Cleanup | Final audit, all soft gates removed, version bump, docs + manuals updated. |
+| v6.1.0 | Foundation + Admin | `_createUserSession`, `validateUserSession`, `destroyUserSession`, `requireAuth`, `getSessionScript()`, config constants + admin session persistence + logout + 12 admin functions gated + 2 soft-gated + admin-edit token. |
+| v6.1.1 | Admin (fix) | Suspension management opened to all admins. Enter key handlers. Button selector fix. Versioning format adopted. |
+| v6.1.2 | Admin (fix) | Semicolons on addEventListener lines (partial fix). |
+| v6.1.3 | Admin (fix) | IIFE missing semicolon — root cause of admin page JS SyntaxError. |
+| v6.1.4 | Admin (fix) | Toast full-height bug — conflicting `top` + `bottom` CSS. |
+| v6.1.5 | All pages (refactor) | Toast consolidation: shared `getToastHtml()` + `getToastScript()`, unified CSS in `getBaseCSS()`. |
+| v6.2.x | Instructor | Session persistence + logout + 8 instructor functions gated. Soft gates → hard. `getInstructorData` split. |
+| v6.3.x | Poll | Session persistence + logout + 3 trainee-level functions gated. |
+| v6.4.x | Register | Session persistence + logout + `getTraineeDataBySession` for safe self-data access. |
+| v6.5.x | Cleanup | Final audit, all soft gates removed, version bump, docs + manuals updated. |
 
 ### Backward Compatibility
 
@@ -161,24 +166,24 @@ Functions called by not-yet-updated pages use **soft gates** during transition (
 
 | Function | Soft gate | Hard gate | Called by |
 |----------|-----------|-----------|-----------|
-| `getAllInstructors` | v6.0.1 | v6.0.2 | Admin + Instructor |
-| `getInstructorData` | v6.0.1 | v6.0.2 | Admin + Instructor |
+| `getAllInstructors` | v6.1.0 | v6.2.x | Admin + Instructor |
+| `getInstructorData` | v6.1.0 | v6.2.x | Admin + Instructor |
 
-### Files Changed (cumulative)
+### Files Changed (cumulative through v6.1.5)
 
 | File | Changes | Est. Lines |
 |------|---------|-----------|
-| config.gs | `SESSION_TTL_SECONDS`, `SESSION_KEY_PREFIX`, version bumps | +2 |
-| data.gs | 4 session functions, `requireAuth`, guards on ~23 functions, `getTraineeDataBySession`, `issueAdminEditToken`, `getInstructorData` split | +130 |
-| pages.gs | `getSessionScript()`, auto-restore + token passing + logout on 4 pages | +155 |
+| config.gs | `SESSION_TTL_SECONDS`, `SESSION_KEY_PREFIX`, version bumps | +8 |
+| data.gs | 4 session functions, `requireAuth`, guards on ~12 admin functions, `issueAdminEditToken`, `getInstructorData` soft-gate | +160 |
+| pages.gs | `getSessionScript()`, `getToastHtml()`, `getToastScript()`, admin auto-restore + token passing + logout, unified toast CSS | +110 |
 | routing.gs | Pass admin-edit token in register URL | +5 |
-| **Total** | | **~292 lines** |
+| **Total** | | **~283 lines** |
 
-Not changed: setup.gs, logo.gs, backup.gs. Not changed pages: Landing, Print, Print OTP Gate.
+Not changed: setup.gs, logo.gs, backup.gs (header bumps only). Not changed pages: Landing, Print, Print OTP Gate.
 
 ### Testing (per-phase checklists in PLAN_v6.md)
 
-Cross-phase integration tests after v6.0.5:
+Cross-phase integration tests after v6.5.x:
 
 - [ ] Admin in tab 1, instructor in tab 2 → independent sessions
 - [ ] Trainee token → admin functions → rejected

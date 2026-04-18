@@ -105,7 +105,7 @@ All pages call `getBaseCSS()` which returns the common CSS string. This is the *
 | Headings | `h1{color:#f8fafc}` (size/margin are page-specific) |
 | Fields | Full `.field` chain: label, input, select, focus, readonly |
 | Buttons | `.btn` base (border-radius, font-weight, cursor, transition) + all color variants |
-| Toast | Top-center fixed position, show/success/error states |
+| Toast | Bottom-center fixed (`bottom:24px`), opacity transition, success/error color variants |
 | Spinner | Display toggle for loading indicators |
 
 **Each page then adds overrides** for layout-specific properties:
@@ -125,7 +125,7 @@ h1{font-size:22px}              ← varies per page
 | Register | Full-width buttons, `.result` card with background, `.tool-section` for weapon details |
 | Poll | `.field{margin-bottom:16px}` (not 14px), container has background/border, radio groups, expired overlay |
 | Instructor | `display:inline-block` buttons, `.btn-small{padding:10px 14px;white-space:nowrap}`, session cards, attendance panel |
-| Admin | `display:inline-block` buttons, `.section{padding:32px}`, toast at bottom with opacity, tables, trainee management, owner panels |
+| Admin | `display:inline-block` buttons, `.section{padding:32px}`, tables, trainee management, owner panels |
 | Print | Completely unique: white background, A4 landscape, `@media print` rules |
 | Print OTP gate | Minimal: centered auth card, no shared base needed but uses it for field/button consistency |
 
@@ -203,10 +203,11 @@ After authentication, the page transitions to a different view (form, dashboard,
 1. **Add new CSS to `getBaseCSS()`** if a rule is shared across 3+ pages
 2. **Override base rules** in page-specific CSS when a page needs different values
 3. **Use `getZoomScript()`** for any new page — never write zoom detection inline
-4. **Test on both mobile and desktop** — the zoom behavior must work in both contexts
-5. **Test with "Request Desktop Site" enabled** — the detection must still work
-6. **Keep the admin page's conditional zoom** pattern for any future dashboard with complex tables
-7. **Increment patch version** in `config.gs` and `pages.gs` header on every edit
+4. **Use `getToastHtml()` + `getToastScript()`** for notifications — never define inline toast divs or `showToast` functions
+5. **Test on both mobile and desktop** — the zoom behavior must work in both contexts
+6. **Test with "Request Desktop Site" enabled** — the detection must still work
+7. **Keep the admin page's conditional zoom** pattern for any future dashboard with complex tables
+8. **Increment patch version** in `config.gs` and `pages.gs` header on every edit
 
 ### DON'T:
 1. **Never use `@media` queries** for mobile/desktop detection inside GAS — they check the iframe viewport, not the device
@@ -229,8 +230,13 @@ function getNewPageHtml() {
   + '.container{padding:0 16px}'
   // ... page-specific CSS ...
   + '</style></head><body>'
+  + getToastHtml()              // toast notification div
   // ... HTML content ...
-  + getZoomScript('520px')  // or '900px' for dashboards
+  + '<script>'
+  + getToastScript()            // showToast(msg, type) — type: "success", "error", or omit
+  // ... page-specific JS ...
+  + '</script>'
+  + getZoomScript('520px')      // or '900px' for dashboards
   + '</body></html>';
 }
 ```
@@ -252,3 +258,4 @@ function getNewPageHtml() {
 | v5.1.8 | **Root cause found:** GAS iframe ignores viewport meta. Implemented CSS zoom fix using `screen.width` vs `window.innerWidth` comparison |
 | v5.1.9 | Fixed PC zoom (changed `Math.min` to `screen.width`), admin conditional zoom, register/poll visual match to instructor/admin login style |
 | v5.2.0 | Extracted shared CSS into `getBaseCSS()`, zoom script into `getZoomScript()`. Single source of truth for all page styling |
+| v6.1.5 | Toast consolidation: shared `getToastHtml()` + `getToastScript()` replace 4 per-page duplicates. Unified toast CSS in `getBaseCSS()` — bottom-positioned, opacity transition, success/error variants. Fixed full-height toast bug (conflicting `top`+`bottom` CSS). |
